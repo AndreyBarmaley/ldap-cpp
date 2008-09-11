@@ -1,0 +1,64 @@
+.TH group_ldap_acl 8 "30 January 2008" "Version 0.4"
+.
+.SH NAME
+group_ldap_acl - Squid LDAP external acl group helper
+.
+.SH SYNOPSIS
+group_ldap_acl -H ldapuri -b group_dn ...
+.
+.SH DESCRIPTION
+This helper allows Squid to connect to a LDAP directory to
+authorize users or hosts via LDAP groups.
+.
+.TP
+.BI "-H " ldapuri
+Specify URI(s) referring to the ldap server(s); only the protocol/host/port fields are allowed;
+a list  of  URI, separated by whitespace or commas is expected.
+.
+.TP
+.BI "-b " "groupdn"
+Use the full Distinguished Name groupdn to the LDAP directory.
+Specifies the base DN under which the users are located (if different)
+.
+.TP
+.BI "-a " "attributes"
+Specify the search attributes. Defaults: memberUid.
+
+.SH SQUID CONFIGURATION
+.
+This helper is intended to be used as a external_acl_type helper from
+squid.conf.
+.P
+.ft CR
+.nf
+external_acl_type type_comp_allow_map ttl=20 children=5 %SRC /path/to/group_ldap_acl -H ldaps://ldap.org -b cn=deny_computers,ou=group,dc=org
+.br
+
+acl COMP_ALLOW external type_comp_boss_map
+.br
+
+http_access deny !COMP_ALLOW
+.br
+
+# for %LOGIN need define proxy_auth above
+external_acl_type type_users_map ttl=20 children=5 %LOGIN /path/to/group_ldap_acl -H ldaps://ldap.org -b cn=allow_user,ou=group,dc=org
+.br
+
+acl USERS_ALLOW external type_users_map
+.br
+
+http_access allow USERS_ALLOW
+.br
+.fi
+.ft
+.
+.SH AUTHOR
+group_ldap_acl is written by 
+.I Andrey Afletdinov
+.
+.SH QUESTIONS
+Any questions on usage can be sent to 
+.I "<afletdinov@dc.baikal.ru>"
+.
+.SH "SEE ALSO"
+.BR ldapsearch ( 1 ),
