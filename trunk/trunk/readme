@@ -1,0 +1,13 @@
+OpenLDAP C++ API wrapper
+
+Requirement:
+    - openldap-devel-2.x
+
+Building:
+    - make
+
+Examples:
+    ping.cpp - simple ping ldap server program.
+    test.cpp - simple connect, bind, update, search and delete operations.
+    groups.cpp - print the groups a user is in
+    group_ldap_acl.cpp - squid ldap auth plugin
