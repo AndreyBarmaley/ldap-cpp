@@ -176,7 +176,8 @@ int main(int argc, char **argv)
                 inet_aton(stream.c_str(), &in) &&
                 (hp = gethostbyaddr((char *) &in.s_addr, sizeof(in.s_addr), AF_INET)))
             {
-                const std::string hostname(hp->h_name);
+                std::string hostname(hp->h_name);
+    		if(insensitive) lower(hostname);
 
                 if(values.end() != std::find(values.begin(), values.end(), hostname)) std::cout << "OK" << std::endl;
                 else std::cout << "ERR" << std::endl;
