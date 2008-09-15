@@ -33,7 +33,7 @@
 #include <netdb.h>
 
 #include "cldap.h"
-#define VERSION "0.6"
+#define VERSION "0.7"
 
 void help(const std::string & name)
 {
@@ -43,6 +43,7 @@ void help(const std::string & name)
     std::cout << "  -b    full DN to group" << std::endl;
     std::cout << "  -a    search attributes (defaults memberUid)" << std::endl;
     std::cout << "  -f    path to authorization file (anonymous bind defaults)" << std::endl;
+    std::cout << "  -i    insensitive" << std::endl << std::endl;
     std::cout << "  -h    print this help and exit" << std::endl << std::endl;
     std::cout << "  example squid ACL:" << std::endl;
     std::cout << "  external_acl_type type_comp_allow_map ttl=20 children=4 %SRC /path/to/group_ldap_acl -H ldaps://ldap.org -b cn=deny_computers,ou=group,dc=org" << std::endl;
@@ -87,8 +88,9 @@ int main(int argc, char **argv)
     std::string uri, group_dn, login, passwd, authfile;
     std::string attr("memberUid");
     const std::string name(argv[0]);
+    bool insensitive = false;
 
-    while((c = getopt(argc, argv, "H:b:f:a:sh")) != -1)
+    while((c = getopt(argc, argv, "H:b:f:a:ih")) != -1)
     {
        switch(c)
        {
@@ -106,6 +108,10 @@ int main(int argc, char **argv)
 
             case 'f':
                 authfile = std::string(optarg);
+                break;
+
+            case 'i':
+		insensitive = true;
                 break;
 
             case 'h':
@@ -155,8 +161,11 @@ int main(int argc, char **argv)
         {
             std::list<std::string> values;
 
-            lower(stream);
-            std::for_each(values.begin(), values.end(), lower);
+            if(insensitive)
+            {
+        	lower(stream);
+        	std::for_each(values.begin(), values.end(), lower);
+	    }
 
             (*ldap.Entries().begin()).GetValues(attr, values);
 
