@@ -155,6 +155,9 @@ int main(int argc, char **argv)
         {
             std::list<std::string> values;
 
+            lower(stream);
+            std::for_each(values.begin(), values.end(), lower);
+
             (*ldap.Entries().begin()).GetValues(attr, values);
 
             if(values.end() != std::find(values.begin(), values.end(), stream)) std::cout << "OK" << std::endl;
@@ -164,10 +167,7 @@ int main(int argc, char **argv)
                 inet_aton(stream.c_str(), &in) &&
                 (hp = gethostbyaddr((char *) &in.s_addr, sizeof(in.s_addr), AF_INET)))
             {
-                std::string hostname(hp->h_name);
-
-                lower(hostname);
-                std::for_each(values.begin(), values.end(), lower);
+                const std::string hostname(hp->h_name);
 
                 if(values.end() != std::find(values.begin(), values.end(), hostname)) std::cout << "OK" << std::endl;
                 else std::cout << "ERR" << std::endl;
