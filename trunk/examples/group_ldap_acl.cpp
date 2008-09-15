@@ -23,6 +23,8 @@
 #include <fstream>
 #include <iostream>
 #include <list>
+#include <algorithm>
+#include <cctype>
 
 #include <unistd.h>
 #include <sys/socket.h>
@@ -31,7 +33,7 @@
 #include <netdb.h>
 
 #include "cldap.h"
-#define VERSION "0.5"
+#define VERSION "0.6"
 
 void help(const std::string & name)
 {
@@ -71,6 +73,11 @@ void parse(const std::string & file, std::string & login, std::string & passwd)
     stream >> passwd;
 
     stream.close();
+}
+
+void lower(std::string & str)
+{
+    std::transform(str.begin(), str.end(), str.begin(), ::tolower);
 }
 
 int main(int argc, char **argv)
@@ -157,7 +164,10 @@ int main(int argc, char **argv)
                 inet_aton(stream.c_str(), &in) &&
                 (hp = gethostbyaddr((char *) &in.s_addr, sizeof(in.s_addr), AF_INET)))
             {
-                const std::string hostname(hp->h_name);
+                std::string hostname(hp->h_name);
+
+                lower(hostname);
+                std::for_each(values.begin(), values.end(), lower);
 
                 if(values.end() != std::find(values.begin(), values.end(), hostname)) std::cout << "OK" << std::endl;
                 else std::cout << "ERR" << std::endl;
