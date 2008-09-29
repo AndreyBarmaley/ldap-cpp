@@ -47,6 +47,7 @@ namespace Ldap
 	    unsigned int Search(const std::string & base, Ldap::scope_t scope = BASE, const std::string & filter = "", const std::list<std::string> & attrs = std::list<std::string>());
             const Ldap::Entries & Entries(void) const{ return search_entries; };
 
+            bool Add(const Entry & entry);
             bool Update(const Entry & entry);
 
 	    bool ModDN(const std::string & dn, const std::string & newdn);

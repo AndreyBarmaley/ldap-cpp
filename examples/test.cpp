@@ -92,9 +92,13 @@ int main(int argc, char **argv)
 
     //entry.Dump();
 
+    // add
+    ldap.Add(entry);
+    std::cout << "add: " <<  ldap.Message() << std::endl;
+
     // update
-    ldap.Update(entry);
-    std::cout << "update: " <<  ldap.Message() << std::endl;
+    //ldap.Update(entry2);
+    //std::cout << "update: " <<  ldap.Message() << std::endl;
 
     // search
     unsigned int count = ldap.Search(object_dn, Ldap::BASE);

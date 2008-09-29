@@ -101,7 +101,7 @@ void Ldap::Server::Unbind(void)
     ldap_object = NULL;
 }
 
-bool Ldap::Server::Update(const Entry & entry)
+bool Ldap::Server::Add(const Entry & entry)
 {
     if(!ldap_object) return false;
 
@@ -110,6 +110,17 @@ bool Ldap::Server::Update(const Entry & entry)
     const std::string & dn = entry2.DN();
 
     return LDAP_SUCCESS == (error_code = ldap_add_ext_s(ldap_object, dn.c_str(), entry2.c_LDAPMod(), NULL, NULL));
+}
+
+bool Ldap::Server::Update(const Entry & entry)
+{
+    if(!ldap_object) return false;
+
+    Entry & entry2 = const_cast<Entry &>(entry);
+
+    const std::string & dn = entry2.DN();
+
+    return LDAP_SUCCESS == (error_code = ldap_modify_ext_s(ldap_object, dn.c_str(), entry2.c_LDAPMod(), NULL, NULL));
 }
 
 const std::string & Ldap::Server::Message(void)
