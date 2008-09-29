@@ -42,22 +42,21 @@ namespace Ldap
             bool Bind(const std::string & bind_dn, const std::string & bind_pw);
             void Unbind(void);
 
-            bool Ping(void);
+            bool Ping(void) const;
 
-	    unsigned int Search(const std::string & base, Ldap::scope_t scope = BASE, const std::string & filter = "", const std::list<std::string> & attrs = std::list<std::string>());
-            const Ldap::Entries & Entries(void) const{ return search_entries; };
+	    unsigned int Search(Ldap::Entries & result, const std::string & base, Ldap::scope_t scope = BASE, const std::string & filter = "", const std::list<std::string> & attrs = std::list<std::string>());
 
             bool Add(const Entry & entry);
-            bool Update(const Entry & entry);
-
-	    bool ModDN(const std::string & dn, const std::string & newdn);
+            bool Modify(const Entry & entry);
+	    bool Compare(const std::string & attr, const std::string & val) const;
 	    bool Delete(const std::string & dn);
-
-            const LDAP * c_LDAP(void) const;
+	    bool ModDN(const std::string & dn, const std::string & newdn);
 
             int Error(void) const;
+            const char * Message(void) const;
 
-            const std::string & Message(void);
+	protected:
+            const LDAP * c_LDAP(void) const;
 
     	private:
             std::string			ldap_uri;
@@ -65,10 +64,7 @@ namespace Ldap
             std::string			ldap_bind_pw;
 
             LDAP *			ldap_object;
-
-    	    int				error_code;
-            std::string			error_string;
-            Ldap::Entries		search_entries;
+	    int				ldap_errno;
     };
 };
 

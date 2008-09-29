@@ -96,12 +96,12 @@ int main(int argc, char **argv)
     
     if(it != std::string::npos) filter.replace(it, uid.size(), uid);
 
-    if(ldap.Search(group_dn, Ldap::ONE, (filter)))
-    {
-	const Ldap::Entries & entries = ldap.Entries();
+    Ldap::Entries result;
 
-	Ldap::Entries::const_iterator it1 = entries.begin();
-	Ldap::Entries::const_iterator it2 = entries.end();
+    if(ldap.Search(result, group_dn, Ldap::ONE, (filter)))
+    {
+	Ldap::Entries::const_iterator it1 = result.begin();
+	Ldap::Entries::const_iterator it2 = result.end();
 
 	std::string cn;
 

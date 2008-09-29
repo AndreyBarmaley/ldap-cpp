@@ -154,10 +154,11 @@ int main(int argc, char **argv)
 
     struct in_addr in;
     struct hostent *hp;
+    Ldap::Entries result;
 
     while(std::cin >> stream)
     {
-        if(ldap.Ping() && ldap.Search(group_dn, Ldap::BASE))
+        if(ldap.Ping() && ldap.Search(result, group_dn, Ldap::BASE))
         {
             std::list<std::string> values;
 
@@ -167,7 +168,7 @@ int main(int argc, char **argv)
         	std::for_each(values.begin(), values.end(), lower);
 	    }
 
-            (*ldap.Entries().begin()).GetValues(attr, values);
+            result.front().GetValues(attr, values);
 
             if(values.end() != std::find(values.begin(), values.end(), stream)) std::cout << "OK" << std::endl;
             else
