@@ -26,78 +26,97 @@ Ldap::Berval::Berval()
     bv_val = NULL;
 }
 
-Ldap::Berval::Berval(const std::vector<char> & v) : std::vector<char>(v)
+Ldap::Berval::~Berval()
 {
-    bv_len = size();
-    bv_val = bv_len ? &at(0) : NULL;
+    if(bv_len && bv_val) delete [] bv_val;
+}
+
+Ldap::Berval::Berval(const std::vector<char> & v)
+{
+    bv_len = v.size();
+    bv_val = NULL;
+    
+    if(bv_len)
+    {
+	bv_val = new char[bv_len];
+	memcpy(bv_val, &v[0], bv_len);
+    }
 }
 
 Ldap::Berval::Berval(const berval & b)
 {
-    bv_len = 0;
+    bv_len = b.bv_len;
     bv_val = NULL;
-
-    if(b.bv_len && b.bv_val)
+    
+    if(bv_len)
     {
-	assign(b.bv_val, &b.bv_val[b.bv_len - 1]);
-
-	bv_len = size();
-	bv_val = &at(0);
+	bv_val = new char[bv_len];
+	memcpy(bv_val, b.bv_val, bv_len);
     }
 }
 
-Ldap::Berval::Berval(int l, char *v)
+Ldap::Berval::Berval(int l, const char *v)
 {
-    bv_len = 0;
+    bv_len = l;
     bv_val = NULL;
 
     if(l && v)
     {
-	assign(v, &v[l - 1]);
-
-	bv_len = size();
-	bv_val = &at(0);
+	bv_val = new char[bv_len];
+	memcpy(bv_val, v, bv_len);
     }
 }
 
 Ldap::Berval & Ldap::Berval::operator= (const std::vector<char> & v)
 {
-    clear();
+    if(bv_len && bv_val) delete [] bv_val;
 
-    assign(v.begin(), v.end());
-
-    bv_len = size();
-    bv_val = bv_len ? &at(0) : NULL;
+    bv_len = v.size();
+    bv_val = NULL;
+    
+    if(bv_len)
+    {
+	bv_val = new char[bv_len];
+	memcpy(bv_val, &v[0], bv_len);
+    }
 
     return *this;
 }
 
 Ldap::Berval & Ldap::Berval::operator= (const berval & b)
 {
-    clear();
+    if(bv_len && bv_val) delete [] bv_val;
 
-    bv_len = 0;
+    bv_len = b.bv_len;
     bv_val = NULL;
-
-    if(b.bv_len && b.bv_val)
+    
+    if(bv_len)
     {
-	assign(b.bv_val, &b.bv_val[b.bv_len - 1]);
-
-	bv_len = size();
-	bv_val = &at(0);
+	bv_val = new char[bv_len];
+	memcpy(bv_val, b.bv_val, bv_len);
     }
 
     return *this;
 }
 
-Ldap::Berval & Ldap::Berval::operator= (const Ldap::Berval & v)
+bool Ldap::Berval::operator== (const Berval & b)
 {
-    clear();
+    return bv_len == b.bv_len && 0 == memcmp(bv_val, b.bv_val, bv_len);
+}
 
-    assign(v.begin(), v.end());
+bool Ldap::Berval::operator== (const std::vector<char> & v)
+{
+    return bv_len == v.size() && 0 == memcmp(bv_val, &v[0], bv_len);
+}
 
-    bv_len = size();
-    bv_val = bv_len ? &at(0) : NULL;
+bool Ldap::Berval::operator== (const std::string & s)
+{
+    return 0 == strncmp(bv_val, s.c_str(), bv_len);
+}
 
-    return *this;
+std::ostream & Ldap::operator<< (std::ostream & os, const Berval & ber)
+{
+    os << "[binary data]";
+
+    return os;
 }

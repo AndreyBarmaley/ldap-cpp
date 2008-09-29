@@ -32,10 +32,10 @@ namespace Ldap
     {
 	public:
 	    Entry(const std::string & dn = "");
-	    Entry(const Entry & entry);                                                                            
+	    Entry(const Entry & entry);
 	    ~Entry();
 
-	    Entry & operator= (const Entry & entry);                                                                            
+	    Entry & operator= (const Entry & entry);
 
 	    void DN(const std::string & dn);
 	    const std::string & DN(void) const;
@@ -48,6 +48,7 @@ namespace Ldap
     	    void Delete(const std::string & attr, const std::vector<char> & value);
     	    void Delete(const std::string & attr, const std::list<std::string> & values);
 
+    	    void Add(const Mod & mod);
     	    void Add(const std::string & attr, const std::string & value);
     	    void Add(const std::string & attr, const std::vector<char> & value);
     	    void Add(const std::string & attr, const std::list<std::string> & values);
@@ -74,7 +75,6 @@ namespace Ldap
 	    std::string		entry_dn;
 	    std::vector<Mod *>	entry_ldapmods;
     };
-
 };
 
 #endif

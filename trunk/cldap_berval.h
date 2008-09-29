@@ -21,22 +21,28 @@
 #ifndef CLDAP_BERVAL_H
 #define CLDAP_BERVAL_H
 
+#include <ostream>
 #include "cldap_types.h"
 
 namespace Ldap
 {
-    class Berval : public std::vector<char>, public berval
+    struct Berval : public berval
     {
-    public:
 	Berval();
 	Berval(const std::vector<char> & v);
 	Berval(const berval & b);
-	Berval(int l, char *v);
+	Berval(int l, const char *v);
+	~Berval();
 
 	Berval & operator= (const std::vector<char> & v);
 	Berval & operator= (const berval & b);
-	Berval & operator= (const Berval & v);
+
+	bool operator== (const Berval & b);
+	bool operator== (const std::vector<char> & v);
+	bool operator== (const std::string & s);
     };
+
+    std::ostream & operator<< (std::ostream & os, const Berval & ber);
 };
 
 #endif

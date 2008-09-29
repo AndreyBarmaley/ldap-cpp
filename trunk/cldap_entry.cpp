@@ -26,8 +26,13 @@ Ldap::Entry::Entry(const std::string & dn) : entry_dn(dn)
 {
 }
 
-Ldap::Entry::Entry(const Entry & entry) : entry_dn(entry.entry_dn), entry_ldapmods(entry.entry_ldapmods)
+Ldap::Entry::Entry(const Entry & entry) : entry_dn(entry.entry_dn)
 {
+    const unsigned int size = entry.entry_ldapmods.size();
+    entry_ldapmods.resize(size);
+
+    for(unsigned int ii = 0; ii < size; ++ii)
+	entry_ldapmods[ii] = new Mod(*entry.entry_ldapmods[ii]);
 }
 
 Ldap::Entry::~Entry()
@@ -36,7 +41,7 @@ Ldap::Entry::~Entry()
     {
 	std::vector<Mod *>::const_iterator it1 = entry_ldapmods.begin();
 	std::vector<Mod *>::const_iterator it2 = entry_ldapmods.end();
-	
+
 	for(; it1 != it2; ++it1) delete *it1;
     }
 }
@@ -44,7 +49,20 @@ Ldap::Entry::~Entry()
 Ldap::Entry & Ldap::Entry::operator= (const Entry & entry)
 {
     entry_dn = entry.entry_dn;
-    entry_ldapmods = entry.entry_ldapmods;
+
+    if(entry_ldapmods.size())
+    {
+	std::vector<Mod *>::const_iterator it1 = entry_ldapmods.begin();
+	std::vector<Mod *>::const_iterator it2 = entry_ldapmods.end();
+
+	for(; it1 != it2; ++it1) delete *it1;
+    }
+
+    const unsigned int size = entry.entry_ldapmods.size();
+    entry_ldapmods.resize(size);
+
+    for(unsigned int ii = 0; ii < size; ++ii)
+	entry_ldapmods[ii] = new Mod(*entry.entry_ldapmods[ii]);
 
     return *this;
 }
@@ -114,6 +132,11 @@ void Ldap::Entry::Delete(const std::string & attr, const std::vector<char> & val
 void Ldap::Entry::Delete(const std::string & attr, const std::list<std::string> & values)
 {
     entry_ldapmods.push_back(new Mod(attr, values, DELETE));
+}
+
+void Ldap::Entry::Add(const Mod & mod)
+{
+    entry_ldapmods.push_back(new Mod(mod));
 }
 
 void Ldap::Entry::Add(const std::string & attr, const std::vector<char> & value)
