@@ -83,36 +83,37 @@ int main(int argc, char **argv)
     entry.Add("objectClass", "organizationalUnit");
     entry.Add("ou", test_ou);
 
-    std::list<std::string> vals;
-    vals.push_back("this test organizational unit block");
-    vals.push_back("addons description line 2");
-    vals.push_back("addons description line 3");
+    //std::list<std::string> vals;
+    //vals.push_back("this test organizational unit block");
+    //vals.push_back("addons description line 2");
+    //vals.push_back("addons description line 3");
 
-    entry.Add("description", vals);
+    entry.Add("description", "vals");
 
     //entry.Dump();
 
-    // add
+    // update
     ldap.Add(entry);
     std::cout << "add: " <<  ldap.Message() << std::endl;
 
-    // update
-    //ldap.Update(entry2);
-    //std::cout << "update: " <<  ldap.Message() << std::endl;
+    Ldap::Entry entry2(entry.DN());
+    entry2.Replace("description", "vals ssssss");
+    ldap.Modify(entry2);
+    std::cout << "modify: " <<  ldap.Message() << std::endl;
 
     // search
-    unsigned int count = ldap.Search(object_dn, Ldap::BASE);
-    std::cout << std::endl << "search: " << object_dn << std::endl << "found: " << count << " entries." << std::endl << std::endl;
+    Ldap::Entries result;
+    ldap.Search(result, object_dn, Ldap::BASE);
+    std::cout << std::endl << "search: " << object_dn << std::endl << "found: " << result.size() << " entries." << std::endl << std::endl;
 
-    if(count)
+    if(result.size())
     {
-	const Ldap::Entries & entries = ldap.Entries();
-
-	Ldap::Entries::const_iterator it1 = entries.begin();
-	Ldap::Entries::const_iterator it2 = entries.end();
+	Ldap::Entries::const_iterator it1 = result.begin();
+	Ldap::Entries::const_iterator it2 = result.end();
 
 	for(; it1 != it2; ++it1)
 	{
+
 	    std::cout << "dump result:" << std::endl;
 	    (*it1).Dump();
 	    std::cout << std::endl;

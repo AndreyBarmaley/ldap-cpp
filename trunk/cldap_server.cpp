@@ -21,12 +21,11 @@
 #include "cldap_entry.h"
 #include "cldap_server.h"
 
-Ldap::Server::Server() : ldap_object(NULL), error_code(LDAP_CONNECT_ERROR)
+Ldap::Server::Server() : ldap_object(NULL), ldap_errno(0)
 {
 }
 
-Ldap::Server::Server(const std::string & connect, bool ssl) :
-    ldap_object(NULL), error_code(0)
+Ldap::Server::Server(const std::string & connect, bool ssl) : ldap_object(NULL), ldap_errno(0)
 {
     ldap_uri = (std::string::npos != connect.find("://") ? connect : (ssl ? "ldaps://" : "ldap://") + connect);
 }
@@ -53,13 +52,13 @@ bool Ldap::Server::Connect(const std::string & connect, bool ssl)
 
     if(ldap_object) Disconnect();
 
-    error_code = ldap_initialize(&ldap_object, ldap_uri.c_str());
+    ldap_errno = ldap_initialize(&ldap_object, ldap_uri.c_str());
 
     const int protocol_version = 3;
 
-    error_code = ldap_set_option(ldap_object, LDAP_OPT_PROTOCOL_VERSION, &protocol_version);
+    if(ldap_object) ldap_set_option(ldap_object, LDAP_OPT_PROTOCOL_VERSION, &protocol_version);
 
-    return ldap_object && LDAP_SUCCESS == error_code;
+    return LDAP_SUCCESS == ldap_errno;
 }
 
 void Ldap::Server::Disconnect(void)
@@ -86,14 +85,14 @@ bool Ldap::Server::Bind(void)
     cred.bv_val = const_cast<char *>(ldap_bind_pw.c_str());
     cred.bv_len = ldap_bind_pw.size();
 
-    error_code = ldap_sasl_bind_s(ldap_object, ldap_bind_dn.c_str(), NULL, &cred, NULL, NULL, NULL);
+    ldap_errno = ldap_sasl_bind_s(ldap_object, ldap_bind_dn.c_str(), NULL, &cred, NULL, NULL, NULL);
 
-    return LDAP_SUCCESS == error_code;
+    return LDAP_SUCCESS == ldap_errno;
 }
 
 void Ldap::Server::Unbind(void)
 {
-    if(ldap_object) ldap_unbind_ext_s(ldap_object, NULL, NULL);
+    if(ldap_object) ldap_errno = ldap_unbind_ext_s(ldap_object, NULL, NULL);
 
     ldap_bind_dn.clear();
     ldap_bind_pw.clear();
@@ -109,42 +108,41 @@ bool Ldap::Server::Add(const Entry & entry)
 
     const std::string & dn = entry2.DN();
 
-    return LDAP_SUCCESS == (error_code = ldap_add_ext_s(ldap_object, dn.c_str(), entry2.c_LDAPMod(), NULL, NULL));
+    return LDAP_SUCCESS == (ldap_errno = ldap_add_ext_s(ldap_object, dn.c_str(), entry2.c_LDAPMod(), NULL, NULL));
 }
 
-bool Ldap::Server::Update(const Entry & entry)
+bool Ldap::Server::Modify(const Entry & entry)
 {
-    if(!ldap_object) return false;
-
-    Entry & entry2 = const_cast<Entry &>(entry);
-
-    const std::string & dn = entry2.DN();
-
-    return LDAP_SUCCESS == (error_code = ldap_modify_ext_s(ldap_object, dn.c_str(), entry2.c_LDAPMod(), NULL, NULL));
+    return ldap_object &&
+	LDAP_SUCCESS == (ldap_errno = ldap_modify_ext_s(ldap_object, entry.DN().c_str(), const_cast<Entry &>(entry).c_LDAPMod(), NULL, NULL));
 }
 
-const std::string & Ldap::Server::Message(void)
+bool Ldap::Server::Compare(const std::string & attr, const std::string & val) const
 {
-    error_string = std::string(ldap_err2string(error_code));
-    
-    return error_string;
+    return ldap_object &&
+	LDAP_COMPARE_TRUE == ldap_compare_ext_s(ldap_object, attr.c_str(), val.c_str(), NULL, NULL, NULL);
+}
+
+const char* Ldap::Server::Message(void) const
+{
+    return ldap_object ? ldap_err2string(ldap_errno) : NULL;
 }
 
 bool Ldap::Server::ModDN(const std::string & dn, const std::string & newdn)
 {
-    return LDAP_SUCCESS == (error_code = ldap_rename_s(ldap_object, dn.c_str(), newdn.c_str(), NULL, 1, NULL, NULL));
+    return ldap_object &&
+	LDAP_SUCCESS == (ldap_errno = ldap_rename_s(ldap_object, dn.c_str(), newdn.c_str(), NULL, 1, NULL, NULL));
 }
 
 bool Ldap::Server::Delete(const std::string & dn)
 {
-    return LDAP_SUCCESS == (error_code = ldap_delete_ext_s(ldap_object, dn.c_str(), NULL, NULL));
+    return ldap_object &&
+	LDAP_SUCCESS == (ldap_errno = ldap_delete_ext_s(ldap_object, dn.c_str(), NULL, NULL));
 }
 
-unsigned int Ldap::Server::Search(const std::string & base, scope_t scope, const std::string & filter, const std::list<std::string> & attrs)
+unsigned int Ldap::Server::Search(Ldap::Entries & result, const std::string & base, scope_t scope, const std::string & filter, const std::list<std::string> & attrs)
 {
-    unsigned int count = 0;
-
-    if(search_entries.size()) search_entries.clear();
+    if(result.size()) result.clear();
 
     // prepare ldap attrs
     std::vector<const char *> ldap_attrs;
@@ -163,21 +161,18 @@ unsigned int Ldap::Server::Search(const std::string & base, scope_t scope, const
     LDAPMessage *res = NULL;
     
     // search
-    error_code = ldap_search_ext_s(ldap_object, base.empty() ? NULL : base.c_str(), scope, filter.empty() ? NULL : filter.c_str(), const_cast<char **>(&ldap_attrs[0]), 0, NULL, NULL, NULL, 0, &res);
+    ldap_errno = ldap_search_ext_s(ldap_object, base.empty() ? NULL : base.c_str(), scope, filter.empty() ? NULL : filter.c_str(), const_cast<char **>(&ldap_attrs[0]), 0, NULL, NULL, NULL, 0, &res);
 
-    if(LDAP_SUCCESS != error_code) return 0;
-
-    count = ldap_count_entries(ldap_object, res);
-
-    if(0 == count) return 0;
+    if(LDAP_SUCCESS != ldap_errno ||
+       0 == ldap_count_entries(ldap_object, res)) return 0;
 
     for(LDAPMessage *ldap_entry = ldap_first_entry(ldap_object, res); NULL != ldap_entry; ldap_entry = ldap_next_entry(ldap_object, ldap_entry))
     {
         char *dn = ldap_get_dn(ldap_object, ldap_entry);
 
-        search_entries.push_back(Entry());
+        result.push_back(Entry());
     
-        Entry & current_entry = search_entries.back();
+        Entry & current_entry = result.back();
         current_entry.DN(std::string(dn));
 
 	BerElement *ber = NULL;
@@ -199,18 +194,20 @@ unsigned int Ldap::Server::Search(const std::string & base, scope_t scope, const
 
     if(res) ldap_msgfree(res);
 
-    return count;
+    return result.size();
 }
 
-bool Ldap::Server::Ping(void)
+bool Ldap::Server::Ping(void) const
 {
+    if(!ldap_object) return false;
+
     LDAPMessage *res = NULL;
 
-    error_code = ldap_search_ext_s(ldap_object, NULL, BASE, NULL, NULL, 0, NULL, NULL, NULL, 0, &res);
+    int errno = ldap_search_ext_s(ldap_object, NULL, BASE, NULL, NULL, 0, NULL, NULL, NULL, 0, &res);
 
     if(res) ldap_msgfree(res);
 
-    return LDAP_SERVER_DOWN != error_code;
+    return LDAP_SERVER_DOWN != errno;
 }
 
 const LDAP * Ldap::Server::c_LDAP(void) const
@@ -220,5 +217,5 @@ const LDAP * Ldap::Server::c_LDAP(void) const
 
 int Ldap::Server::Error(void) const
 {
-    return error_code;
+    return ldap_errno;
 }

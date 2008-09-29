@@ -11,3 +11,5 @@ Examples:
     test.cpp - simple connect, bind, update, search and delete operations.
     groups.cpp - print the groups a user is in
     group_ldap_acl.cpp - squid ldap auth plugin
+
+https://ldap-cpp.googlecode.com
