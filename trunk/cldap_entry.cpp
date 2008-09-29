@@ -77,7 +77,7 @@ const std::string & Ldap::Entry::DN(void) const
     return entry_dn;
 }
 
-Ldap::Mod * Ldap::Entry::Find(const std::string & attr, actions_t action, bool binary)
+Ldap::Mod * Ldap::Entry::Find(const std::string & attr, actions_t action)
 {
     std::vector<Mod *>::const_iterator it1 = entry_ldapmods.begin();
     std::vector<Mod *>::const_iterator it2 = entry_ldapmods.end();
@@ -88,7 +88,7 @@ Ldap::Mod * Ldap::Entry::Find(const std::string & attr, actions_t action, bool b
 	{
 	    const Mod & mod = **it1;
 
-	    if(mod.mod_op == (binary ? action | LDAP_MOD_BVALUES : action) && 0 == strcmp(mod.mod_type, attr.c_str())) return *it1;
+	    if(mod.mod_op == action && 0 == strcmp(mod.mod_type, attr.c_str())) return *it1;
 	}
     }
 
@@ -105,7 +105,7 @@ void Ldap::Entry::Replace(const std::string & attr, const std::string & value)
 
 void Ldap::Entry::Replace(const std::string & attr, const std::vector<char> & value)
 {
-    if(Mod *mod = Find(attr, REPLACE, true))
+    if(Mod *mod = Find(attr, REPLACE))
 	mod->Append(value);
     else
 	entry_ldapmods.push_back(new Mod(attr, value, ADD));
@@ -141,7 +141,7 @@ void Ldap::Entry::Add(const Mod & mod)
 
 void Ldap::Entry::Add(const std::string & attr, const std::vector<char> & value)
 {
-    if(Mod *mod = Find(attr, ADD, true))
+    if(Mod *mod = Find(attr, ADD))
 	mod->Append(value);
     else
 	entry_ldapmods.push_back(new Mod(attr, value, ADD));

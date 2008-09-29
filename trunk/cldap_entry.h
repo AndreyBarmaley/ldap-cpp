@@ -70,7 +70,7 @@ namespace Ldap
     	    LDAPMod** c_LDAPMod(void);
 
 	private:
-	    Mod *		Find(const std::string & attr, actions_t action, bool binary = false);
+	    Mod *		Find(const std::string & attr, actions_t action);
 
 	    std::string		entry_dn;
 	    std::vector<Mod *>	entry_ldapmods;
