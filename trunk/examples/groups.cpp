@@ -94,7 +94,11 @@ int main(int argc, char **argv)
     
     const size_t it = filter.find("$uid");
     
-    if(it != std::string::npos) filter.replace(it, uid.size(), uid);
+    if(it != std::string::npos)
+    {
+	filter.resize(it);
+        filter.append(uid);
+    }
 
     Ldap::Entries result;
 
