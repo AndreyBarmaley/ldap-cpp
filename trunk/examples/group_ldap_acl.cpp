@@ -33,7 +33,7 @@
 #include <netdb.h>
 
 #include "cldap.h"
-#define VERSION "0.7"
+#define VERSION "0.8"
 
 void help(const std::string & name)
 {
@@ -162,13 +162,13 @@ int main(int argc, char **argv)
         {
             std::list<std::string> values;
 
+            result.front().GetValues(attr, values);
+
             if(insensitive)
             {
         	lower(stream);
         	std::for_each(values.begin(), values.end(), lower);
 	    }
-
-            result.front().GetValues(attr, values);
 
             if(values.end() != std::find(values.begin(), values.end(), stream)) std::cout << "OK" << std::endl;
             else
