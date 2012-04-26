@@ -1,6 +1,6 @@
 = LDAP c++ simple wrapper =
 
-<pre>
+<code language="cpp">
     Ldap::Server ldap;
 
     ldap.Connect(uri);
@@ -52,4 +52,4 @@
         success = ldap.Delete(object_dn);
         std::cout << "ldap delete: " << ldap.Message() << std::endl << std::endl;
     }
-</pre>
+</code>
