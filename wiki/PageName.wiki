@@ -1,6 +1,4 @@
-#summary LDAP c++ simple wrapper
-
-= Example code =
+= LDAP c++ simple wrapper =
 
 <pre>
     Ldap::Server ldap;
