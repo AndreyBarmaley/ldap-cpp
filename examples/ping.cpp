@@ -1,6 +1,6 @@
 /***************************************************************************
- *   Copyright (C) 2008 by Andrey Afletdinov                               *
- *   afletdinov@mail.dc.baikal.ru                                          *
+ *   Copyright (C) 2012 by Andrey Afletdinov                               *
+ *   afletdinov@gmail.com                                                  *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *

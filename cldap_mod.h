@@ -1,6 +1,6 @@
 /***************************************************************************
- *   Copyright (C) 2008 by Andrey Afletdinov                               *
- *   afletdinov@mail.dc.baikal.ru                                          *
+ *   Copyright (C) 2012 by Andrey Afletdinov                               *
+ *   afletdinov@gmail.com                                                  *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -25,51 +25,33 @@
 
 namespace Ldap
 {
-    //class Berval;
-    class Mod : public LDAPMod
+    class Server;
+
+    class Mod : protected LDAPMod
     {
     public:
-	Mod();
-	Mod(const Mod & mod);
-	Mod(const LDAPMod & ldapmod);
-	Mod(const std::string & attr, const actions_t action, bool binary = false);
-	Mod(const std::string & attr, const std::string & vals, const actions_t action);
-	Mod(const std::string & attr, const std::vector<char> & vals, const actions_t action);
-	Mod(const std::string & attr, const std::list<std::string> & vals, const actions_t action);
-
+	Mod(int, const char*);
 	~Mod();
 
-	Mod & operator= (const Mod & mod);
-	Mod & operator= (const LDAPMod & ldapmod);
+	void		Append(const char*);
+	void		Append(const char*, size_t);
 
-	bool Binary(void);
-	bool Exists(const std::string & val);
-	bool Exists(const std::vector<char> & val);
+	void		Clear(void);
 
-	const char* Attr(void);
+	bool		IsType(const char*) const;
+	bool		IsOperation(int) const;
 
-	actions_t Action(void);
-	void SetAction(const actions_t action);
+	const char* const*	GetStrValues(void) const;
+	const berval* const*	GetBinValues(void) const;
 
-	bool Append(const std::string & val);
-	bool Append(const std::vector<char> & val);
-	bool Append(const std::list<std::string> & val);
-	void Append(const char* val, const unsigned int len);
+    private:
+    	friend class Server;
+	friend std::ostream & operator<< (std::ostream &, const Mod &);
 
-	void Dump(std::ostream & stream = std::cout) const;
-
-	void GetValue(std::string & result) const;
-        void GetValue(std::vector<char> & result) const;
-
-	void GetValues(std::list<std::string> & result) const;
-        void GetValues(std::list< std::vector<char> > & result) const;
-
-	static unsigned int BervalSize(const berval* const* ptr);
-	static unsigned int BervalSize(const char* const* ptr);
-
-    protected:
-	void Clear(void);
+	size_t		mod_vals_size;
     };
+
+    std::ostream & operator<< (std::ostream &, const Mod &);
 };
 
 #endif

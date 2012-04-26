@@ -8,7 +8,7 @@ CC = g++
 
 all: $(TARGETS)
 
-$(TARGETS): $(addsuffix .cpp, $(TARGETS))
+$(TARGETS): $(addsuffix .cpp, $(TARGETS)) ../libcldap++.a
 	$(CC) -c $@.cpp $(CFLAGS)
 	$(CC) -o $@ $@.o $(LIBS)
 

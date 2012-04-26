@@ -1,6 +1,6 @@
 /***************************************************************************
- *   Copyright (C) 2008 by Andrey Afletdinov                               *
- *   afletdinov@mail.dc.baikal.ru                                          *
+ *   Copyright (C) 2012 by Andrey Afletdinov                               *
+ *   afletdinov@gmail.com                                                  *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -18,234 +18,337 @@
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
  ***************************************************************************/
 
-#include "cldap_mod.h"
-#include "cldap_server.h"
+#include <algorithm>
+#include <iterator>
 #include "cldap_entry.h"
 
-Ldap::Entry::Entry(const std::string & dn) : entry_dn(dn)
+Ldap::Entry::Entry(const std::string & str) : dn(str)
 {
+    reserve(32);
+    push_back(NULL);
 }
 
-Ldap::Entry::Entry(const Entry & entry) : entry_dn(entry.entry_dn)
+Ldap::Entry::~Entry(void)
 {
-    const unsigned int size = entry.entry_ldapmods.size();
-    entry_ldapmods.resize(size);
-
-    for(unsigned int ii = 0; ii < size; ++ii)
-	entry_ldapmods[ii] = new Mod(*entry.entry_ldapmods[ii]);
+    for(iterator it = begin(); it != end(); ++it) delete *it;
 }
 
-Ldap::Entry::~Entry()
+void Ldap::Entry::SetDN(const std::string & str)
 {
-    if(entry_ldapmods.size())
-    {
-	std::vector<Mod *>::const_iterator it1 = entry_ldapmods.begin();
-	std::vector<Mod *>::const_iterator it2 = entry_ldapmods.end();
-
-	for(; it1 != it2; ++it1) delete *it1;
-    }
-}
-
-Ldap::Entry & Ldap::Entry::operator= (const Entry & entry)
-{
-    entry_dn = entry.entry_dn;
-
-    if(entry_ldapmods.size())
-    {
-	std::vector<Mod *>::const_iterator it1 = entry_ldapmods.begin();
-	std::vector<Mod *>::const_iterator it2 = entry_ldapmods.end();
-
-	for(; it1 != it2; ++it1) delete *it1;
-    }
-
-    const unsigned int size = entry.entry_ldapmods.size();
-    entry_ldapmods.resize(size);
-
-    for(unsigned int ii = 0; ii < size; ++ii)
-	entry_ldapmods[ii] = new Mod(*entry.entry_ldapmods[ii]);
-
-    return *this;
-}
-
-void Ldap::Entry::DN(const std::string & dn)
-{
-    entry_dn = dn;
+    dn = str;
 }
 
 const std::string & Ldap::Entry::DN(void) const
 {
-    return entry_dn;
+    return dn;
 }
 
-Ldap::Mod * Ldap::Entry::Find(const std::string & attr, actions_t action)
+void Ldap::Entry::Append(int op, const std::string & attr, const std::string & value)
 {
-    std::vector<Mod *>::const_iterator it1 = entry_ldapmods.begin();
-    std::vector<Mod *>::const_iterator it2 = entry_ldapmods.end();
-
-    for(; it1 != it2; ++it1)
+    if(attr.size() && value.size())
     {
-	if(*it1)
-	{
-	    const Mod & mod = **it1;
+	iterator it = begin();
 
-	    if(mod.mod_op == action && 0 == strcmp(mod.mod_type, attr.c_str())) return *it1;
+	for(; it != end(); ++it)
+	    if(*it && (*it)->IsType(attr.c_str()) && (*it)->IsOperation(op)) break;
+
+	if(it == end())
+	    it = PushBack(new Mod(op, attr.c_str()));
+
+	(*it)->Append(value.c_str());
+    }
+}
+
+void Ldap::Entry::Append(int op, const std::string & attr, const std::vector<std::string> & values)
+{
+    if(attr.size() && values.size())
+    {
+	iterator it = begin();
+
+	for(; it != end(); ++it)
+	    if(*it && (*it)->IsType(attr.c_str()) && (*it)->IsOperation(op)) break;
+
+	if(it == end())
+	    it = PushBack(new Mod(op, attr.c_str()));
+
+	for(std::vector<std::string>::const_iterator
+	    it2 = values.begin(); it2 != values.end(); ++it2)
+	    (*it)->Append((*it2).c_str());
+    }
+}
+
+void Ldap::Entry::Append(int op, const std::string & attr, const std::list<std::string> & values)
+{
+    if(attr.size() && values.size())
+    {
+	iterator it = begin();
+
+	for(; it != end(); ++it)
+	    if(*it && (*it)->IsType(attr.c_str()) && (*it)->IsOperation(op)) break;
+
+	if(it == end())
+	    it = PushBack(new Mod(op, attr.c_str()));
+
+	for(std::list<std::string>::const_iterator
+	    it2 = values.begin(); it2 != values.end(); ++it2)
+	    (*it)->Append((*it2).c_str());
+    }
+}
+
+void Ldap::Entry::Append(int op, const std::string & attr, const std::vector<char> & value)
+{
+    if(attr.size() && value.size())
+    {
+	iterator it = begin();
+
+	for(; it != end(); ++it)
+	    if(*it && (*it)->IsType(attr.c_str()) && (*it)->IsOperation(op)) break;
+
+	if(it == end())
+	    it = PushBack(new Mod(op, attr.c_str()));
+
+	(*it)->Append(&value[0], value.size());
+    }
+}
+
+void Ldap::Entry::Append(int op, const std::string & attr, const std::vector< std::vector<char> > & values)
+{
+    if(attr.size() && values.size())
+    {
+	iterator it = begin();
+
+	for(; it != end(); ++it)
+	    if(*it && (*it)->IsType(attr.c_str()) && (*it)->IsOperation(op)) break;
+
+	if(it == end())
+	    it = PushBack(new Mod(op, attr.c_str()));
+
+	for(std::vector< std::vector<char> >::const_iterator
+	    it2 = values.begin(); it2 != values.end(); ++it2)
+	    (*it)->Append(&(*it2)[0], (*it2).size());
+    }
+}
+
+void Ldap::Entry::Append(int op, const std::string & attr, const std::list< std::vector<char> > & values)
+{
+    if(attr.size() && values.size())
+    {
+	iterator it = begin();
+
+	for(; it != end(); ++it)
+	    if(*it && (*it)->IsType(attr.c_str()) && (*it)->IsOperation(op)) break;
+
+	if(it == end())
+	    it = PushBack(new Mod(op, attr.c_str()));
+
+	for(std::list< std::vector<char> >::const_iterator
+	    it2 = values.begin(); it2 != values.end(); ++it2)
+	    (*it)->Append(&(*it2)[0], (*it2).size());
+    }
+}
+
+std::string Ldap::Entry::GetStringValue(const std::string & attr) const
+{
+    if(attr.size())
+    {
+	const_iterator it = find_if(begin(), end(), std::bind2nd(std::mem_fun(&Mod::IsType), attr.c_str()));
+
+	if(it != end() && *it)
+	{
+	    if(const berval* const* bvals = (*it)->GetBinValues())
+	    {
+		if(bvals && bvals[0])
+		    return std::string(bvals[0]->bv_val, bvals[0]->bv_len);
+	    }
+	    else
+	    if(const char* const* vals = (*it)->GetStrValues())
+	    {
+		if(vals && vals[0])
+		    return std::string(vals[0]);
+	    }
 	}
     }
 
-    return NULL;
+    return std::string();
 }
 
-void Ldap::Entry::Replace(const std::string & attr, const std::string & value)
+std::vector<std::string>
+Ldap::Entry::GetStringValues(const std::string & attr) const
 {
-    if(Mod *mod = Find(attr, REPLACE))
-	mod->Append(value);
-    else
-	entry_ldapmods.push_back(new Mod(attr, value, REPLACE));
-}
+    std::vector<std::string> res;
 
-void Ldap::Entry::Replace(const std::string & attr, const std::vector<char> & value)
-{
-    if(Mod *mod = Find(attr, REPLACE))
-	mod->Append(value);
-    else
-	entry_ldapmods.push_back(new Mod(attr, value, ADD));
-}
-
-void Ldap::Entry::Replace(const std::string & attr, const std::list<std::string> & values)
-{
-    std::list<std::string>::const_iterator it1 = values.begin();
-    std::list<std::string>::const_iterator it2 = values.end();
-    
-    for(; it1 != it2; ++it1) Replace(attr, *it1);
-}
-
-void Ldap::Entry::Delete(const std::string & attr, const std::string & value)
-{
-    entry_ldapmods.push_back(new Mod(attr, value, DELETE));
-}
-
-void Ldap::Entry::Delete(const std::string & attr, const std::vector<char> & values)
-{
-    entry_ldapmods.push_back(new Mod(attr, values, DELETE));
-}
-
-void Ldap::Entry::Delete(const std::string & attr, const std::list<std::string> & values)
-{
-    entry_ldapmods.push_back(new Mod(attr, values, DELETE));
-}
-
-void Ldap::Entry::Add(const Mod & mod)
-{
-    entry_ldapmods.push_back(new Mod(mod));
-}
-
-void Ldap::Entry::Add(const std::string & attr, const std::vector<char> & value)
-{
-    if(Mod *mod = Find(attr, ADD))
-	mod->Append(value);
-    else
-	entry_ldapmods.push_back(new Mod(attr, value, ADD));
-}
-
-void Ldap::Entry::Add(const std::string & attr, const std::string & value)
-{
-    if(Mod *mod = Find(attr, ADD))
-	mod->Append(value);
-    else
-	entry_ldapmods.push_back(new Mod(attr, value, ADD));
-}
-
-void Ldap::Entry::Add(const std::string & attr, const std::list<std::string> & values)
-{
-    std::list<std::string>::const_iterator it1 = values.begin();
-    std::list<std::string>::const_iterator it2 = values.end();
-    
-    for(; it1 != it2; ++it1) Add(attr, *it1);
-}
-
-void Ldap::Entry::Modify(const LDAPMod **ldapmods)
-{
-    entry_ldapmods.push_back(new Mod());
-}
-
-void Ldap::Entry::Dump(std::ostream & stream) const
-{
-    stream << "dn: " << entry_dn << std::endl;
-
-    if(entry_ldapmods.size())
+    if(attr.size())
     {
-	std::vector<Mod *>::const_iterator it1 = entry_ldapmods.begin();
-	std::vector<Mod *>::const_iterator it2 = entry_ldapmods.end();
+	const_iterator it = find_if(begin(), end(), std::bind2nd(std::mem_fun(&Mod::IsType), attr.c_str()));
 
-        for(; it1 != it2; ++it1) if(*it1) (**it1).Dump(stream);
-    }
-}
-
-LDAPMod** Ldap::Entry::c_LDAPMod(void)
-{
-    if(entry_ldapmods.empty() || entry_ldapmods.back()) entry_ldapmods.push_back(NULL);
-
-    return reinterpret_cast<LDAPMod **>(&entry_ldapmods[0]);
-}
-
-const Ldap::Mod* Ldap::Entry::Exists(const std::string & attr) const
-{
-    if(entry_ldapmods.size())
-    {
-	std::vector<Mod *>::const_iterator it1 = entry_ldapmods.begin();
-	std::vector<Mod *>::const_iterator it2 = entry_ldapmods.end();
-
-	for(; it1 != it2; ++it1)
-	    if(*it1 && attr == (*it1)->Attr()) return *it1;
+	if(it != end() && *it)
+	{
+	    if(const berval* const* bvals = (*it)->GetBinValues())
+	    {
+		while(bvals && *bvals)
+		{
+		    res.push_back(std::string((*bvals)->bv_val, (*bvals)->bv_len));
+		    ++bvals;
+		}
+	    }
+	    else
+	    if(const char* const* vals = (*it)->GetStrValues())
+	    {
+		while(vals && *vals)
+		{
+		    res.push_back(std::string(*vals));
+		    ++vals;
+		}
+	    }
+	}
     }
 
-    return NULL;
+    return res;
 }
 
-const Ldap::Mod* Ldap::Entry::Exists(const std::string & attr, const std::string & val) const
+std::list<std::string>
+Ldap::Entry::GetStringList(const std::string & attr) const
 {
-    if(entry_ldapmods.size())
-    {
-	std::vector<Mod *>::const_iterator it1 = entry_ldapmods.begin();
-	std::vector<Mod *>::const_iterator it2 = entry_ldapmods.end();
+    std::list<std::string> res;
 
-	for(; it1 != it2; ++it1)
-	    if(*it1 && attr == (*it1)->Attr() && (*it1)->Exists(val)) return *it1;
+    if(attr.size())
+    {
+	const_iterator it = find_if(begin(), end(), std::bind2nd(std::mem_fun(&Mod::IsType), attr.c_str()));
+
+	if(it != end() && *it)
+	{
+	    if(const berval* const* bvals = (*it)->GetBinValues())
+	    {
+		while(bvals && *bvals)
+		{
+		    res.push_back(std::string((*bvals)->bv_val, (*bvals)->bv_len));
+		    ++bvals;
+		}
+	    }
+	    else
+	    if(const char* const* vals = (*it)->GetStrValues())
+	    {
+		while(vals && *vals)
+		{
+		    res.push_back(std::string(*vals));
+		    ++vals;
+		}
+	    }
+	}
     }
 
-    return NULL;
+    return res;
 }
 
-const Ldap::Mod* Ldap::Entry::Exists(const std::string & attr, const std::vector<char> & val) const
+std::vector<char> Ldap::Entry::GetBinaryValue(const std::string & attr) const
 {
-    if(entry_ldapmods.size())
+    if(attr.size())
     {
-	std::vector<Mod *>::const_iterator it1 = entry_ldapmods.begin();
-	std::vector<Mod *>::const_iterator it2 = entry_ldapmods.end();
+	const_iterator it = find_if(begin(), end(), std::bind2nd(std::mem_fun(&Mod::IsType), attr.c_str()));
 
-	for(; it1 != it2; ++it1)
-	    if(*it1 && attr == (*it1)->Attr() && (*it1)->Exists(val)) return *it1;
+	if(it != end() && *it)
+	{
+	    if(const berval* const* bvals = (*it)->GetBinValues())
+	    {
+		if(bvals && bvals[0])
+		    return std::vector<char>(bvals[0]->bv_val, bvals[0]->bv_val + bvals[0]->bv_len);
+	    }
+	    else
+	    if(const char* const* vals = (*it)->GetStrValues())
+	    {
+		if(vals && vals[0])
+		    return std::vector<char>(vals[0], vals[0] + strlen(vals[0]));
+	    }
+	}
     }
 
-    return NULL;
+    return std::vector<char>();
 }
 
-void Ldap::Entry::GetValue(const std::string & attr, std::string & result) const
+std::vector< std::vector<char> >
+Ldap::Entry::GetBinaryValues(const std::string & attr) const
 {
-    if(const Mod* mod = Exists(attr)) mod->GetValue(result);
+    std::vector< std::vector<char> > res;
+
+    if(attr.size())
+    {
+	const_iterator it = find_if(begin(), end(), std::bind2nd(std::mem_fun(&Mod::IsType), attr.c_str()));
+
+	if(it != end() && *it)
+	{
+	    if(const berval* const* bvals = (*it)->GetBinValues())
+	    {
+		while(bvals && *bvals)
+		{
+		    res.push_back(std::vector<char>((*bvals)->bv_val, (*bvals)->bv_val + (*bvals)->bv_len));
+		    ++bvals;
+		}
+	    }
+	    else
+	    if(const char* const* vals = (*it)->GetStrValues())
+	    {
+		while(vals && *vals)
+		{
+		    res.push_back(std::vector<char>(*vals, *vals + strlen(*vals)));
+		    ++vals;
+		}
+	    }
+	}
+    }
+
+    return res;
 }
 
-void Ldap::Entry::GetValue(const std::string & attr, std::vector<char> & result) const
+std::list< std::vector<char> >
+Ldap::Entry::GetBinaryList(const std::string & attr) const
 {
-    if(const Mod* mod = Exists(attr)) mod->GetValue(result);
+    std::list< std::vector<char> > res;
+
+    if(attr.size())
+    {
+	const_iterator it = find_if(begin(), end(), std::bind2nd(std::mem_fun(&Mod::IsType), attr.c_str()));
+
+	if(it != end() && *it)
+	{
+	    if(const berval* const* bvals = (*it)->GetBinValues())
+	    {
+		while(bvals && *bvals)
+		{
+		    res.push_back(std::vector<char>((*bvals)->bv_val, (*bvals)->bv_val + (*bvals)->bv_len));
+		    ++bvals;
+		}
+	    }
+	    else
+	    if(const char* const* vals = (*it)->GetStrValues())
+	    {
+		while(vals && *vals)
+		{
+		    res.push_back(std::vector<char>(*vals, *vals + strlen(*vals)));
+		    ++vals;
+		}
+	    }
+	}
+    }
+
+    return res;
 }
 
-void Ldap::Entry::GetValues(const std::string & attr, std::list<std::string> & result) const
+Ldap::Entry::iterator Ldap::Entry::PushBack(Mod* mod)
 {
-    if(const Mod* mod = Exists(attr)) mod->GetValues(result);
+    push_back(NULL);
+    iterator it = std::find(begin(), end(), static_cast<Mod*>(0));
+    *it = mod;
+    return it;
 }
 
-void Ldap::Entry::GetValues(const std::string & attr, std::list< std::vector<char> > & result) const
+std::ostream & Ldap::operator<< (std::ostream & os, const Entry & entry)
 {
-    if(const Mod* mod = Exists(attr)) mod->GetValues(result);
+    os << "dn: " << entry.dn << std::endl;
+
+    for(Entry::const_iterator
+	it = entry.begin(); it != entry.end(); ++it)
+	if(*it) os << **it;
+
+    return os;
 }
+

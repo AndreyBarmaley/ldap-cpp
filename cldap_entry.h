@@ -1,6 +1,6 @@
 /***************************************************************************
- *   Copyright (C) 2008 by Andrey Afletdinov                               *
- *   afletdinov@mail.dc.baikal.ru                                          *
+ *   Copyright (C) 2012 by Andrey Afletdinov                               *
+ *   afletdinov@gmail.com                                                  *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -21,60 +21,51 @@
 #ifndef CLDAP_ENTRY_H
 #define CLDAP_ENTRY_H
 
-#include "cldap_types.h"
+#include "cldap_mod.h"
 
 namespace Ldap
 {
-    class Mod;
     class Server;
 
-    class Entry
+    class Entry : protected std::vector<Mod*>
     {
 	public:
-	    Entry(const std::string & dn = "");
-	    Entry(const Entry & entry);
+	    Entry(const std::string &);
 	    ~Entry();
 
-	    Entry & operator= (const Entry & entry);
+	    void		SetDN(const std::string &);
+	    const std::string &	DN(void) const;
 
-	    void DN(const std::string & dn);
-	    const std::string & DN(void) const;
+    	    void		Append(int, const std::string &, const std::string &);
+    	    void		Append(int, const std::string &, const std::vector<std::string> &);
+    	    void		Append(int, const std::string &, const std::list<std::string> &);
 
-    	    void Replace(const std::string & attr, const std::string & value);
-    	    void Replace(const std::string & attr, const std::vector<char> & value);
-    	    void Replace(const std::string & attr, const std::list<std::string> & values);
+    	    void		Append(int, const std::string &, const std::vector<char> &);
+    	    void		Append(int, const std::string &, const std::vector< std::vector<char> > &);
+    	    void		Append(int, const std::string &, const std::list< std::vector<char> > &);
 
-    	    void Delete(const std::string & attr, const std::string & value = "");
-    	    void Delete(const std::string & attr, const std::vector<char> & value);
-    	    void Delete(const std::string & attr, const std::list<std::string> & values);
+	    std::string		GetStringValue(const std::string &) const;
+	    std::vector<std::string>
+				GetStringValues(const std::string &) const;
+	    std::list<std::string>
+				GetStringList(const std::string &) const;
 
-    	    void Add(const Mod & mod);
-    	    void Add(const std::string & attr, const std::string & value);
-    	    void Add(const std::string & attr, const std::vector<char> & value);
-    	    void Add(const std::string & attr, const std::list<std::string> & values);
-
-	    void Modify(const LDAPMod **ldapmods);
-
-	    const Mod* Exists(const std::string & attr) const;
-	    const Mod* Exists(const std::string & attr, const std::string & val) const;
-	    const Mod* Exists(const std::string & attr, const std::vector<char> & val) const;
-
-            void Dump(std::ostream & stream = std::cout) const;
-
-            void GetValue(const std::string & attr, std::string & result) const;
-            void GetValue(const std::string & attr, std::vector<char> & result) const;
-
-            void GetValues(const std::string & attr, std::list<std::string> & result) const;
-            void GetValues(const std::string & attr, std::list< std::vector<char> > & result) const;
-
-    	    LDAPMod** c_LDAPMod(void);
+	    std::vector<char>	GetBinaryValue(const std::string &) const;
+	    std::vector< std::vector<char> >
+				GetBinaryValues(const std::string &) const;
+	    std::list< std::vector<char> >
+				GetBinaryList(const std::string &) const;
 
 	private:
-	    Mod *		Find(const std::string & attr, actions_t action);
+	    friend class Server;
+	    friend std::ostream & operator<< (std::ostream &, const Entry &);
 
-	    std::string		entry_dn;
-	    std::vector<Mod *>	entry_ldapmods;
+	    iterator		PushBack(Mod*);
+
+	    std::string		dn;
     };
+
+    std::ostream & operator<< (std::ostream &, const Entry &);
 };
 
 #endif

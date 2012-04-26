@@ -1,6 +1,6 @@
 /***************************************************************************
- *   Copyright (C) 2008 by Andrey Afletdinov                               *
- *   afletdinov@mail.dc.baikal.ru                                          *
+ *   Copyright (C) 2012 by Andrey Afletdinov                               *
+ *   afletdinov@gmail.com                                                  *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -29,13 +29,13 @@ namespace Ldap
     {
 	public:
             Server();
-            Server(const std::string & connect, bool ssl = false);
+            Server(const std::string & uri, bool ssl = false);
             ~Server();
 
             const std::string & URI(void) const;
             const std::string & BindDN(void) const;
 
-            bool Connect(const std::string & connect = "", bool ssl = false);
+            bool Connect(const std::string & uri = "", bool ssl = false);
             void Disconnect(void);
 
             bool Bind(void);
@@ -44,7 +44,7 @@ namespace Ldap
 
             bool Ping(void) const;
 
-	    unsigned int Search(Ldap::Entries & result, const std::string & base, Ldap::scope_t scope = BASE, const std::string & filter = "", const std::list<std::string> & attrs = std::list<std::string>());
+	    Entries Search(const std::string & base, scope_t scope = BASE, const std::string & filter = "", const Attrs* = NULL);
 
             bool Add(const Entry & entry);
             bool Modify(const Entry & entry);
@@ -53,19 +53,20 @@ namespace Ldap
 	    bool ModDN(const std::string & dn, const std::string & newdn);
 
             int Error(void) const;
-            const char * Message(void) const;
+            const char* Message(void) const;
 
 	protected:
-            const LDAP * c_LDAP(void) const;
+	    void	CreateURI(const std::string & uri, bool ssl);
 
-    	private:
             std::string			ldap_uri;
             std::string			ldap_bind_dn;
             std::string			ldap_bind_pw;
 
-            LDAP *			ldap_object;
+            LDAP*			ldap_object;
 	    int				ldap_errno;
     };
+
+    std::ostream & operator<< (std::ostream &, const Entries &);
 };
 
 #endif
