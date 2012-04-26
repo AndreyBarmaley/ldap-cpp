@@ -1,6 +1,6 @@
 /***************************************************************************
- *   Copyright (C) 2008 by Andrey Afletdinov                               *
- *   afletdinov@mail.dc.baikal.ru                                          *
+ *   Copyright (C) 2012 by Andrey Afletdinov                               *
+ *   afletdinov@gmail.com                                                  *
  *                                                                         *
  *   external acl for squid                                                *
  *                                                                         *
@@ -33,7 +33,7 @@
 #include <netdb.h>
 
 #include "cldap.h"
-#define VERSION "0.8"
+#define VERSION "0.9"
 
 void help(const std::string & name)
 {
@@ -154,37 +154,39 @@ int main(int argc, char **argv)
 
     struct in_addr in;
     struct hostent *hp;
-    Ldap::Entries result;
 
     while(std::cin >> stream)
     {
-        if(ldap.Ping() && ldap.Search(result, group_dn, Ldap::BASE))
+        if(ldap.Ping())
         {
-            std::list<std::string> values;
+	    const Ldap::Entries & result = ldap.Search(group_dn, Ldap::BASE);
 
-            result.front().GetValues(attr, values);
+	    if(result.size())
+	    {
+        	std::list<std::string> values = result.front().GetStringList(attr);
 
-            if(insensitive)
-            {
-        	lower(stream);
-        	std::for_each(values.begin(), values.end(), lower);
+        	if(insensitive)
+        	{
+        	    lower(stream);
+        	    std::for_each(values.begin(), values.end(), lower);
+		}
+
+        	if(values.end() != std::find(values.begin(), values.end(), stream)) std::cout << "OK" << std::endl;
+        	else
+        	// possible ip address (3 dots)
+        	if(3 == std::count(stream.begin(), stream.end(), '.') &&
+            	    inet_aton(stream.c_str(), &in) &&
+            	    (hp = gethostbyaddr((char *) &in.s_addr, sizeof(in.s_addr), AF_INET)))
+        	{
+            	    std::string hostname(hp->h_name);
+    		    if(insensitive) lower(hostname);
+
+            	    if(values.end() != std::find(values.begin(), values.end(), hostname)) std::cout << "OK" << std::endl;
+            	    else std::cout << "ERR" << std::endl;
+        	}
+        	else
+            	    std::cout << "ERR" << std::endl;
 	    }
-
-            if(values.end() != std::find(values.begin(), values.end(), stream)) std::cout << "OK" << std::endl;
-            else
-            // possible ip address (3 dots)
-            if(3 == std::count(stream.begin(), stream.end(), '.') &&
-                inet_aton(stream.c_str(), &in) &&
-                (hp = gethostbyaddr((char *) &in.s_addr, sizeof(in.s_addr), AF_INET)))
-            {
-                std::string hostname(hp->h_name);
-    		if(insensitive) lower(hostname);
-
-                if(values.end() != std::find(values.begin(), values.end(), hostname)) std::cout << "OK" << std::endl;
-                else std::cout << "ERR" << std::endl;
-            }
-            else
-                std::cout << "ERR" << std::endl;
         }
         else
         {

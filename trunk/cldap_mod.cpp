@@ -1,6 +1,6 @@
 /***************************************************************************
- *   Copyright (C) 2008 by Andrey Afletdinov                               *
- *   afletdinov@mail.dc.baikal.ru                                          *
+ *   Copyright (C) 2012 by Andrey Afletdinov                               *
+ *   afletdinov@gmail.com                                                  *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -18,99 +18,86 @@
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
  ***************************************************************************/
 
+#include <cstring>
+#include <iomanip>
+#include <functional>
 #include <algorithm>
-#include "cldap_berval.h"
 #include "cldap_mod.h"
 
-char* StrDup(const char *str, unsigned int size)
+char* StrDup(const char* str)
 {
-    if(! str) return NULL;
-    char *dup = new char [size + 1];
-    strcpy(dup, str);
-    dup[size] = '\0';
-
-    return dup;
+    size_t len = strlen(str);
+    char*  res = new char [len + 1];
+    std::copy(str, str + len, res);
+    res[len] = 0;
+    return res;
 }
 
-Ldap::Mod::Mod()
+struct Berval : berval
 {
-    mod_op = 0;
-    mod_type = NULL;
-    mod_bvalues = NULL;
-}
-
-Ldap::Mod::Mod(const Mod & mod)
-{
-    mod_op = mod.mod_op;
-    mod_type = StrDup(mod.mod_type, strlen(mod.mod_type));
-    mod_bvalues = NULL;
-
-    if(mod_op & LDAP_MOD_BVALUES)
+    Berval()
     {
-	const unsigned int size = BervalSize(mod.mod_bvalues);
-	berval** bvalues = mod.mod_bvalues;
-        for(unsigned int ii = 0; ii < size; ++ii, ++bvalues) Append((*bvalues)->bv_val, (*bvalues)->bv_len);
+	bv_len = 0;
+	bv_val = NULL;
     }
-    else
+
+    Berval(const char* val, size_t len)
     {
-	const unsigned int size = BervalSize(mod.mod_values);
-	char** values = mod.mod_values;
-	for(unsigned int ii = 0; ii < size; ++ii, ++values) Append(*values, strlen(*values));
+	bv_len = 0;
+	bv_val = NULL;
+
+	Assign(val, len);
     }
-}
 
-Ldap::Mod::Mod(const LDAPMod & ldapmod)
-{
-    mod_op = ldapmod.mod_op;
-    mod_type = StrDup(ldapmod.mod_type, strlen(ldapmod.mod_type));
-    mod_bvalues = NULL;
-
-    if(mod_op & LDAP_MOD_BVALUES)
+    Berval(const berval & ber)
     {
-	const unsigned int size = BervalSize(ldapmod.mod_bvalues);
-	berval** bvalues = ldapmod.mod_bvalues;
-        for(unsigned int ii = 0; ii < size; ++ii, ++bvalues) Append((*bvalues)->bv_val, (*bvalues)->bv_len);
+	bv_len = 0;
+	bv_val = NULL;
+
+	Assign(ber.bv_val, ber.bv_len);
     }
-    else
+
+    Berval & operator= (const berval & ber)
     {
-	const unsigned int size = BervalSize(ldapmod.mod_values);
-	char** values = ldapmod.mod_values;
-	for(unsigned int ii = 0; ii < size; ++ii, ++values) Append(*values, strlen(*values));
+	if(&ber != this)
+	    Assign(ber.bv_val, ber.bv_len);
+
+	return *this;
     }
-}
 
-Ldap::Mod::Mod(const std::string & attr, const actions_t action, bool binary)
+    ~Berval()
+    {
+	Clear();
+    }
+
+    void Clear(void)
+    {
+	if(bv_val) delete [] bv_val;
+
+	bv_len = 0;
+	bv_val = NULL;
+    }
+
+    void Assign(const char* val, size_t len)
+    {
+	Clear();
+
+	if(len && val)
+	{
+	    bv_len = len;
+	    bv_val = new char [len];
+	    std::memcpy(bv_val, val, len);
+	}
+    }
+};
+
+Ldap::Mod::Mod(int op, const char* type)
 {
-    mod_op = binary ? LDAP_MOD_BVALUES | action : action;
-    mod_type = StrDup(attr.c_str(), attr.size());
-    mod_bvalues = NULL;
-}
-
-Ldap::Mod::Mod(const std::string & attr, const std::string & val, const actions_t action)
-{
-    mod_op = action;
-    mod_type = StrDup(attr.c_str(), attr.size());
+    mod_op = op;
+    mod_type = type ? StrDup(type) : NULL;
     mod_bvalues = NULL;
 
-    Append(val);
-}
-
-Ldap::Mod::Mod(const std::string & attr, const std::vector<char> & val, const actions_t action)
-{
-    mod_op = LDAP_MOD_BVALUES | action;
-    mod_type = StrDup(attr.c_str(), attr.size());
-    mod_bvalues = NULL;
-
-    Append(val);
-}
-
-Ldap::Mod::Mod(const std::string & attr, const std::list<std::string> & vals, const actions_t action)
-{
-    mod_op = action;
-    mod_type = StrDup(attr.c_str(), attr.size());
-    mod_bvalues = NULL;
-
-    Append(vals);
+    mod_vals_size = 0;
 }
 
 Ldap::Mod::~Mod()
@@ -118,381 +105,144 @@ Ldap::Mod::~Mod()
     Clear();
 }
 
-void Ldap::Mod::Append(const char* val, const unsigned int len)
-{
-    if(NULL == val || 0 == len) return;
-
-    if(mod_op & LDAP_MOD_BVALUES)
-    {
-	if(mod_bvalues)
-	{
-	    const unsigned int old_size = BervalSize(mod_bvalues);
-	    berval** new_bvalues = new berval* [old_size + 2];
-	    memcpy(new_bvalues, mod_bvalues, old_size * sizeof(berval*));
-	    new_bvalues[old_size] = new Berval(len, val);
-	    new_bvalues[old_size + 1] = NULL;
-	    delete [] mod_bvalues;
-	    mod_bvalues = new_bvalues;
-	}
-	else
-	{
-	    mod_bvalues = new berval* [2];
-	    mod_bvalues[0] = new Berval(len, val);
-	    mod_bvalues[1] = NULL;
-	}
-    }
-    else
-    {
-	if(mod_values)
-	{
-	    const unsigned int old_size = BervalSize(mod_values);
-	    char** new_values = new char* [old_size + 2];
-	    memcpy(new_values, mod_values, old_size * sizeof(char*));
-	    new_values[old_size] = StrDup(val, len);
-	    new_values[old_size + 1] = NULL;
-	    delete [] mod_values;
-	    mod_values = new_values;
-	}
-	else
-	{
-	    mod_values = new char* [2];
-	    mod_values[0] = StrDup(val, len);
-	    mod_values[1] = NULL;
-	}
-    }
-}
-
-bool Ldap::Mod::Append(const std::string & val)
-{
-    if(val.empty()) return false;
-
-    Append(val.c_str(), val.size());
-
-    return true;
-}
-
-bool Ldap::Mod::Append(const std::vector<char> & val)
-{
-    if(val.empty()) return false;
-
-    Append(&val[0], val.size());
-
-    return true;
-}
-
-bool Ldap::Mod::Append(const std::list<std::string> & val)
-{
-    if(val.empty()) return false;
-
-    std::list<std::string>::const_iterator it1 = val.begin();
-    std::list<std::string>::const_iterator it2 = val.end();
-
-    for(; it1 != it2; ++it1) Append(*it1);
-
-    return true;
-}
-
-Ldap::Mod & Ldap::Mod::operator= (const LDAPMod & ldapmod)
-{
-    Clear();
-
-    mod_op = ldapmod.mod_op;
-    mod_type = StrDup(ldapmod.mod_type, strlen(ldapmod.mod_type));
-
-    if(mod_op & LDAP_MOD_BVALUES)
-    {
-	const unsigned int size = BervalSize(ldapmod.mod_bvalues);
-	berval** bvalues = ldapmod.mod_bvalues;
-        for(unsigned int ii = 0; ii < size; ++ii, ++bvalues) Append((*bvalues)->bv_val, (*bvalues)->bv_len);
-    }
-    else
-    {
-	const unsigned int size = BervalSize(ldapmod.mod_values);
-	char** values = ldapmod.mod_values;
-	for(unsigned int ii = 0; ii < size; ++ii, ++values) Append(*values, strlen(*values));
-    }
-
-    return *this;
-}
-
-Ldap::Mod & Ldap::Mod::operator= (const Mod & mod)
-{
-    Clear();
-
-    mod_op = mod.mod_op;
-    mod_type = StrDup(mod.mod_type, strlen(mod.mod_type));
-
-    if(mod_op & LDAP_MOD_BVALUES)
-    {
-	const unsigned int size = BervalSize(mod.mod_bvalues);
-	berval** bvalues = mod.mod_bvalues;
-        for(unsigned int ii = 0; ii < size; ++ii, ++bvalues) Append((*bvalues)->bv_val, (*bvalues)->bv_len);
-    }
-    else
-    {
-	const unsigned int size = BervalSize(mod.mod_values);
-	char** values = mod.mod_values;
-	for(unsigned int ii = 0; ii < size; ++ii, ++values) Append(*values, strlen(*values));
-    }
-
-    return *this;
-}
-
-bool Ldap::Mod::Binary(void)
-{
-    return mod_op & LDAP_MOD_BVALUES;
-}
-
-bool Ldap::Mod::Exists(const std::string & val)
-{
-    if(val.empty()) return false;
-
-    if(mod_op & LDAP_MOD_BVALUES)
-    {
-	if(mod_bvalues)
-	{
-	    berval** bvalues = mod_bvalues;
-
-	    while(*bvalues)
-	    {
-		if(static_cast<Berval>(**bvalues) == val) return true;
-		++bvalues;
-	    }
-	}
-    }
-    else
-    {
-	if(mod_values)
-	{
-	    char** values = mod_values;
-
-	    while(*values)
-	    {
-		if(strlen(*values) == val.size() && 0 == strcmp((*values), val.c_str())) return true;
-		++values;
-	    }
-	}
-    }
-
-    return false;
-}
-
-bool Ldap::Mod::Exists(const std::vector<char> & val)
-{
-    if(val.empty()) return false;
-
-    if(mod_op & LDAP_MOD_BVALUES)
-    {
-	if(mod_bvalues)
-	{
-	    berval** bvalues = mod_bvalues;
-
-	    while(*bvalues)
-	    {
-		if(static_cast<Berval>(**bvalues) == val) return true;
-		++bvalues;
-	    }
-	}
-    }
-    else
-    {
-	if(mod_values)
-	{
-	    char** values = mod_values;
-
-	    while(*values)
-	    {
-		if(strlen(*values) == val.size() && 0 == memcmp((*values), &val[0], val.size())) return true;
-		++values;
-	    }
-	}
-    }
-
-    return false;
-}
-
-Ldap::actions_t Ldap::Mod::Action(void)
-{
-    if(mod_op & LDAP_MOD_ADD) return ADD;
-    else
-    if(mod_op & LDAP_MOD_DELETE) return DELETE;
-    else
-    if(mod_op & LDAP_MOD_REPLACE) return REPLACE;
-
-    return NONE;
-}
-
-void Ldap::Mod::SetAction(const actions_t action)
-{
-    mod_op |= action;
-}
-
-const char* Ldap::Mod::Attr(void)
-{
-    return mod_type;
-}
-
-void Ldap::Mod::Dump(std::ostream & stream) const
-{
-    if(mod_op & LDAP_MOD_BVALUES)
-    {
-	if(mod_bvalues)
-	{
-	    berval** bvalues = mod_bvalues;
-
-	    while(*bvalues)
-	    {
-		stream << mod_type << ": " << static_cast<Berval>(**bvalues) << std::endl;
-		++bvalues;
-	    }
-	}
-    }
-    else
-    {
-	if(mod_values)
-	{
-	    char** values = mod_values;
-
-	    while(*values)
-	    {
-		stream << mod_type << ": " << *values << std::endl;
-		++values;
-	    }
-	}
-    }
-}
-
-void Ldap::Mod::GetValue(std::string & result) const
-{
-    if(mod_op & LDAP_MOD_BVALUES)
-    {
-	if(mod_bvalues && *mod_bvalues) result.assign((*mod_bvalues)->bv_val, (*mod_bvalues)->bv_len);
-    }
-    else
-    {
-	if(mod_values && *mod_values) result.assign(*mod_values);
-    }
-}
-
-void Ldap::Mod::GetValue(std::vector<char> & result) const
-{
-    if(mod_op & LDAP_MOD_BVALUES)
-    {
-	if(mod_bvalues && *mod_bvalues)	result.assign((*mod_bvalues)->bv_val, (*mod_bvalues)->bv_val + (*mod_bvalues)->bv_len);
-    }
-    else
-    {
-	if(mod_values && *mod_values) result.assign(*mod_values, *mod_values + strlen(*mod_values));
-    }
-}
-
-void Ldap::Mod::GetValues(std::list<std::string> & result) const
-{
-    result.clear();
-
-    if(mod_op & LDAP_MOD_BVALUES)
-    {
-	if(mod_bvalues)
-	{
-	    berval** bvalues = mod_bvalues;
-
-	    while(*bvalues)
-	    {
-		result.push_back(std::string((*bvalues)->bv_val, (*bvalues)->bv_len));
-		++bvalues;
-	    }
-	}
-    }
-    else
-    {
-	if(mod_values)
-	{
-	    char** values = mod_values;
-
-	    while(*values)
-	    {
-		result.push_back(std::string(*values));
-		++values;
-	    }
-	}
-    }
-}
-
-void Ldap::Mod::GetValues(std::list< std::vector<char> > & result) const
-{
-    result.clear();
-
-    if(mod_op & LDAP_MOD_BVALUES)
-    {
-	if(mod_bvalues)
-	{
-	    berval** bvalues = mod_bvalues;
-
-	    while(*bvalues)
-	    {
-		result.push_back(std::vector<char>((*bvalues)->bv_val, (*bvalues)->bv_val + (*bvalues)->bv_len));
-		++bvalues;
-	    }
-	}
-    }
-    else
-    {
-	if(mod_values)
-	{
-	    char** values = mod_values;
-
-	    while(*values)
-	    {
-		result.push_back(std::vector<char>(*values, *values + strlen(*values)));
-		++values;
-	    }
-	}
-    }
-}
-
-unsigned int Ldap::Mod::BervalSize(const berval* const* ptr)
-{
-    unsigned int result = 0;
-    
-    if(ptr) while(*ptr++) ++result;
-
-    return result;
-}
-
-unsigned int Ldap::Mod::BervalSize(const char* const* ptr)
-{
-    unsigned int result = 0;
-    
-    if(ptr) while(*ptr++) ++result;
-
-    return result;
-}
-
 void Ldap::Mod::Clear(void)
 {
-    if(mod_op & LDAP_MOD_BVALUES)
+    if(mod_bvalues)
     {
-	if(mod_bvalues)
+	if(mod_op & LDAP_MOD_BVALUES)
 	{
-	    berval** bvalues = mod_bvalues;
-	    while(*bvalues){ delete static_cast<Berval*>(*bvalues); ++bvalues; }
+	    for(berval** bval = mod_bvalues; bval && *bval; ++bval) delete static_cast<Berval*>(*bval);
 	    delete [] mod_bvalues;
 	    mod_bvalues = NULL;
 	}
-    }
-    else
-    {
-	if(mod_values)
+	else
 	{
-	    char** values = mod_values;
-	    while(*values){ delete [] (*values); ++values; }
+	    for(char** val = mod_values; val && *val; ++val) delete [] *val;
 	    delete [] mod_values;
 	    mod_values = NULL;
 	}
     }
 
-    delete [] mod_type;
+    if(mod_type)
+    {
+	delete [] mod_type;
+	mod_type = NULL;
+    }
 
-    mod_type = NULL;
     mod_op = 0;
 }
+
+bool Ldap::Mod::IsOperation(int op) const
+{
+    return (mod_op & LDAP_MOD_OP) == op;
+}
+
+bool Ldap::Mod::IsType(const char* str) const
+{
+    return 0 == std::strcmp(mod_type, str);
+}
+
+void Ldap::Mod::Append(const char* str)
+{
+    if(mod_values)
+    {
+	// add
+	char** itbeg = mod_values;
+	char** itend = mod_values + mod_vals_size - 1; // skip last: always is NULL
+	char** itcur = std::find(itbeg, itend, static_cast<char*>(0));
+
+	if(itcur != itend)
+	    *itcur = StrDup(str);
+	else
+	{
+	    // resize
+	    size_t new_vals_size = mod_vals_size * 2;
+	    char** new_values = new char* [new_vals_size];
+	    std::memset(new_values, 0, sizeof(char*) * new_vals_size);
+	    std::copy(itbeg, itend, new_values);
+	    delete [] mod_values;
+	    mod_values = new_values;
+	    mod_values[mod_vals_size - 1] = StrDup(str);
+	    mod_vals_size = new_vals_size;
+	}
+    }
+    else
+    {
+	// add
+	mod_vals_size = 4;
+	mod_values = new char* [mod_vals_size];
+	std::memset(mod_values, 0, sizeof(char*) * mod_vals_size);
+	mod_values[0] = StrDup(str);
+    }
+}
+
+void Ldap::Mod::Append(const char* val, size_t len)
+{
+    if(mod_bvalues)
+    {
+	// add
+	berval** itbeg = mod_bvalues;
+	berval** itend = mod_bvalues + mod_vals_size - 1; // skip last: always is NULL
+	berval** itcur = std::find(itbeg, itend, static_cast<berval*>(0));
+
+	if(itcur != itend)
+	    *itcur = new Berval(val, len);
+	else
+	{
+	    // resize
+	    size_t new_vals_size = mod_vals_size * 2;
+	    berval** new_bvalues = new berval* [new_vals_size];
+	    std::memset(new_bvalues, 0, sizeof(berval*) * new_vals_size);
+	    std::copy(itbeg, itend, new_bvalues);
+	    delete [] mod_bvalues;
+	    mod_bvalues = new_bvalues;
+	    mod_bvalues[mod_vals_size - 1] = new Berval(val, len);
+	    mod_vals_size = new_vals_size;
+	}
+    }
+    else
+    {
+	// add
+	mod_vals_size = 4;
+	mod_bvalues = new berval* [mod_vals_size];
+	std::memset(mod_bvalues, 0, sizeof(berval*) * mod_vals_size);
+	mod_bvalues[0] = new Berval(val, len);
+
+	// set binary
+	mod_op |= LDAP_MOD_BVALUES;
+    }
+}
+
+const char* const* Ldap::Mod::GetStrValues(void) const
+{
+    return mod_op & LDAP_MOD_BVALUES ? NULL : mod_values;
+}
+
+const berval* const* Ldap::Mod::GetBinValues(void) const
+{
+    return mod_op & LDAP_MOD_BVALUES ? mod_bvalues : NULL;
+}
+
+std::ostream & Ldap::operator<< (std::ostream & os, const Mod & mod)
+{
+    if(mod.mod_bvalues)
+    {
+	if(mod.mod_op & LDAP_MOD_BVALUES)
+	    for(berval** bval = mod.mod_bvalues; bval && *bval; ++bval)
+	    {
+		os << mod.mod_type << ": ";
+ 		for(size_t ii = 0; ii < (*bval)->bv_len; ++ii)
+		    os << (*bval)->bv_val[ii];
+//			os << " 0x" << std::setw(2) << std::setfill('0') << std::hex << static_cast<int>((*bval)->bv_val[ii]);
+		os << std::endl;
+	    }
+	else
+	    for(char** val = mod.mod_values; val && *val; ++val)
+		os << mod.mod_type << ": " << *val << std::endl;
+    }
+    else
+	os << mod.mod_type << ":" << std::endl;
+
+    return os;
+}
+

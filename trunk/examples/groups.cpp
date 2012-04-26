@@ -1,6 +1,6 @@
 /***************************************************************************
- *   Copyright (C) 2008 by Andrey Afletdinov                               *
- *   afletdinov@mail.dc.baikal.ru                                          *
+ *   Copyright (C) 2012 by Andrey Afletdinov                               *
+ *   afletdinov@gmail.com                                                  *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -32,7 +32,7 @@ int main(int argc, char **argv)
     std::string uri;
     std::string group_dn;
     std::string filter("memberUid=$uid");
-    bool endl = false;
+    bool endline = false;
 
     while((c = getopt(argc, argv, "H:b:a:n")) != -1)
     {
@@ -51,7 +51,7 @@ int main(int argc, char **argv)
         	break;
 
 	    case 'n':
-		endl = true;
+		endline = true;
 		break;
 
            default:
@@ -77,7 +77,6 @@ int main(int argc, char **argv)
     if(ldap.Error())
     {
 	std::cout << "error: " <<  ldap.Message() << std::endl;
-
 	return 1;
     }
 
@@ -86,7 +85,6 @@ int main(int argc, char **argv)
     if(ldap.Error())
     {
 	std::cout << "error: " <<  ldap.Message() << std::endl;
-
 	return 1;
     }
 
@@ -100,26 +98,18 @@ int main(int argc, char **argv)
         filter.append(uid);
     }
 
-    Ldap::Entries result;
+    const Ldap::Entries result = ldap.Search(group_dn, Ldap::ONE, filter);
 
-    if(ldap.Search(result, group_dn, Ldap::ONE, (filter)))
+    if(result.size())
     {
-	Ldap::Entries::const_iterator it1 = result.begin();
-	Ldap::Entries::const_iterator it2 = result.end();
+	for(Ldap::Entries::const_iterator
+	    it = result.begin(); it != result.end(); ++it)
+	    if(endline)
+		std::cout << (*it).GetStringValue("cn") << std::endl;
+	    else
+		std::cout << (*it).GetStringValue("cn") << " ";
 
-	std::string cn;
-
-	for(; it1 != it2; ++it1)
-	{
-
-	    (*it1).GetValue("cn", cn);
-
-	    std::cout << cn;
-
-	    endl ? std::cout << std::endl : std::cout << " ";
-	}
-
-        if(!endl) std::cout << std::endl;
+        if(!endline) std::cout << std::endl;
     }
 
     return 0;

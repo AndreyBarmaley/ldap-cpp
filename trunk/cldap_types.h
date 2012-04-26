@@ -1,6 +1,6 @@
 /***************************************************************************
- *   Copyright (C) 2008 by Andrey Afletdinov                               *
- *   afletdinov@mail.dc.baikal.ru                                          *
+ *   Copyright (C) 2012 by Andrey Afletdinov                               *
+ *   afletdinov@gmail.com                                                  *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -31,10 +31,11 @@ namespace Ldap
 {
     class Entry;
 
-    typedef enum { NONE = 0, ADD = LDAP_MOD_ADD, DELETE = LDAP_MOD_DELETE, REPLACE = LDAP_MOD_REPLACE } actions_t;
+    typedef enum { ADD = LDAP_MOD_ADD, DELETE = LDAP_MOD_DELETE, REPLACE = LDAP_MOD_REPLACE } actions_t;
     typedef enum { BASE = LDAP_SCOPE_BASE, ONE = LDAP_SCOPE_ONELEVEL, TREE = LDAP_SCOPE_SUBTREE } scope_t;
 
-    typedef std::list<Entry>	Entries;
+    typedef std::list<Entry>            Entries;
+    typedef std::list<std::string>      Attrs;
 };
 
 #endif
