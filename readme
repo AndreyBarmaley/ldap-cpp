@@ -12,4 +12,4 @@ Examples:
     groups.cpp - print the groups a user is in
     group_ldap_acl.cpp - squid ldap auth plugin
 
-http://code.googlecode.com/ldap-cpp
+URL: http://code.google.com/p/ldap-cpp
