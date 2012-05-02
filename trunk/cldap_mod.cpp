@@ -20,6 +20,7 @@
 
 #include <cstring>
 #include <iomanip>
+#include <iterator>
 #include <functional>
 #include <algorithm>
 #include "cldap_mod.h"
@@ -223,19 +224,82 @@ const berval* const* Ldap::Mod::GetBinValues(void) const
     return mod_op & LDAP_MOD_BVALUES ? mod_bvalues : NULL;
 }
 
+#include <openssl/bio.h>
+#include <openssl/evp.h>
+
+namespace SSL
+{
+    std::vector<char> EncodeBase64(const char* ptr, size_t size)
+    {
+        BIO* b64 = BIO_new(BIO_f_base64());
+        BIO* bmem = BIO_new(BIO_s_mem());
+
+        b64 = BIO_push(b64, bmem);
+        BIO_write(b64, ptr, size);
+        BIO_flush(b64);
+
+        char* bptr = NULL;
+        long  bsze = BIO_get_mem_data(b64, & bptr);
+
+        std::vector<char> result(bsze + 1, 0);
+        std::copy(bptr, bptr + bsze, result.begin());
+        result.back() = '\n';
+
+        BIO_free_all(b64);
+        return result;
+    };
+
+    std::vector<char> DecodeBase64(const char* ptr, size_t size)
+    {
+        BIO* b64 = BIO_new(BIO_f_base64());
+        BIO* bmem = BIO_new_mem_buf(const_cast<char*>(ptr), size);
+        bmem = BIO_push(b64, bmem);
+
+        std::vector<char> result(size, 0);
+        BIO_read(bmem, & result[0], size);
+
+        result.resize(std::distance(result.begin(),
+                std::find_if(result.begin(), result.end(), std::bind2nd(std::equal_to<int>(), 0))));
+
+        BIO_free_all(bmem);
+        return result;
+    };
+}
+
 std::ostream & Ldap::operator<< (std::ostream & os, const Mod & mod)
 {
+    const char* strbin = ";binary";
+
     if(mod.mod_bvalues)
     {
 	if(mod.mod_op & LDAP_MOD_BVALUES)
+	{
+	    bool binary = std::strlen(mod.mod_type) > std::strlen(strbin) &&
+		0 == std::strcmp(& mod.mod_type[std::strlen(mod.mod_type) - std::strlen(strbin)], strbin);
+
 	    for(berval** bval = mod.mod_bvalues; bval && *bval; ++bval)
 	    {
 		os << mod.mod_type << ": ";
- 		for(size_t ii = 0; ii < (*bval)->bv_len; ++ii)
-		    os << (*bval)->bv_val[ii];
-//			os << " 0x" << std::setw(2) << std::setfill('0') << std::hex << static_cast<int>((*bval)->bv_val[ii]);
-		os << std::endl;
+
+		if(! binary)
+		{
+		    char* bv_end = (*bval)->bv_val + (*bval)->bv_len - 1; // skip last '\0'
+		    if(bv_end != std::find_if((*bval)->bv_val, bv_end, std::bind2nd(std::less<int>(), 20)))
+			binary = true;
+		}
+
+		if(binary)
+		{
+		    std::vector<char> base64 = SSL::EncodeBase64((*bval)->bv_val, (*bval)->bv_len);
+		    std::copy(base64.begin(), base64.end(), std::ostream_iterator<char>(os, ""));
+		}
+		else
+		{
+		    std::copy((*bval)->bv_val, (*bval)->bv_val + (*bval)->bv_len, std::ostream_iterator<char>(os, ""));
+		    os << std::endl;
+		}
 	    }
+	}
 	else
 	    for(char** val = mod.mod_values; val && *val; ++val)
 		os << mod.mod_type << ": " << *val << std::endl;

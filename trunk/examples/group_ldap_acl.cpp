@@ -192,6 +192,10 @@ int main(int argc, char **argv)
         {
             std::cerr << name << ": connection down" << std::endl;
             std::cout << "ERR" << std::endl;
+
+	    ldap.Disconnect();
+	    ldap.Connect(uri);
+	    ldap.Bind(login, passwd);
         }
 
         std::cout.flush();
