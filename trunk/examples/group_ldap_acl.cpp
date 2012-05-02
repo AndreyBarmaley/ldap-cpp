@@ -33,7 +33,7 @@
 #include <netdb.h>
 
 #include "cldap.h"
-#define VERSION "0.9"
+#define VERSION "1.0"
 
 void help(const std::string & name)
 {
