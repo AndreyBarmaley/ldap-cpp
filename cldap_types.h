@@ -36,6 +36,12 @@ namespace Ldap
 
     typedef std::list<Entry>            Entries;
     typedef std::list<std::string>      Attrs;
-};
+}
+
+namespace SSL
+{
+    std::vector<char> EncodeBase64(const char*, size_t);
+    std::vector<char> DecodeBase64(const char*, size_t);
+}
 
 #endif
