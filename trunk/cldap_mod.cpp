@@ -227,7 +227,7 @@ const berval* const* Ldap::Mod::GetBinValues(void) const
 #include <openssl/bio.h>
 #include <openssl/evp.h>
 
-namespace SSL
+namespace OpenSSL
 {
     std::vector<char> EncodeBase64(const char* ptr, size_t size)
     {
@@ -290,7 +290,7 @@ std::ostream & Ldap::operator<< (std::ostream & os, const Mod & mod)
 
 		if(binary)
 		{
-		    std::vector<char> base64 = SSL::EncodeBase64((*bval)->bv_val, (*bval)->bv_len);
+		    std::vector<char> base64 = OpenSSL::EncodeBase64((*bval)->bv_val, (*bval)->bv_len);
 		    std::copy(base64.begin(), base64.end(), std::ostream_iterator<char>(os, ""));
 		}
 		else
