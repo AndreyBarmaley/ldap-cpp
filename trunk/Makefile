@@ -1,7 +1,7 @@
 # makefileё
 
 TARGET = libcldap++
-LIBS = -lldap -llber -lcrypto -lssl
+LIBS = -lldap -llber
 CFLAGS = -O2 -Wall -I .
 
 CC = g++
