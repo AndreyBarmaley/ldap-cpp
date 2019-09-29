@@ -27,21 +27,26 @@
 #include <iostream>
 #include <ldap.h>
 
+#define CLDAP_VERSION 20180427
+
 namespace Ldap
 {
     class Entry;
 
-    typedef enum { ADD = LDAP_MOD_ADD, DELETE = LDAP_MOD_DELETE, REPLACE = LDAP_MOD_REPLACE } actions_t;
-    typedef enum { BASE = LDAP_SCOPE_BASE, ONE = LDAP_SCOPE_ONELEVEL, TREE = LDAP_SCOPE_SUBTREE } scope_t;
+    enum Action { ActionAdd = LDAP_MOD_ADD, ActionDelete = LDAP_MOD_DELETE, ActionReplace = LDAP_MOD_REPLACE };
+    enum Scope { ScopeBase = LDAP_SCOPE_BASE, ScopeOne = LDAP_SCOPE_ONELEVEL, ScopeTree = LDAP_SCOPE_SUBTREE };
 
-    typedef std::list<Entry>            Entries;
-    typedef std::list<std::string>      Attrs;
+    typedef std::list<Entry>            ListEntries;
+    typedef std::list<std::string>      ListAttrs;
 }
 
-namespace OpenSSL
+namespace Base64
 {
-    std::vector<char> EncodeBase64(const char*, size_t);
-    std::vector<char> DecodeBase64(const char*, size_t);
+    std::vector<char> encode(const char*, size_t);
+    std::vector<char> decode(const char*, size_t);
+
+    std::string StringWrap(const std::string &, const std::string &);
+    void SetBinaryOnly(bool);
 }
 
 #endif

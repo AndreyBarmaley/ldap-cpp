@@ -1,10 +1,16 @@
 # makefileё
 
-TARGET = libcldap++
-LIBS = -lldap -llber
-CFLAGS = -O2 -Wall -I .
+TARGET	:= libcldap++
+CC	:= g++
 
-CC = g++
+LIBS	:= -lldap -llber
+CFLAGS	:= -std=c++0x -fPIC -Wall -I .
+
+ifdef DEBUG
+CFLAGS	:= $(CFLAGS) -O0 -g -pedantic -DWITH_DEBUG
+else
+CFLAGS	:= -O2 $(CFLAGS)
+endif
 
 all: examples
 

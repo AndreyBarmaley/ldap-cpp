@@ -80,18 +80,26 @@ int main(int argc, char **argv)
 
     const std::string & test_ou = "cldap_test_ou";
     const std::string object_dn("ou=" + test_ou + "," + bdn);
+
     Ldap::Entry entry(object_dn);
 
-    entry.Append(Ldap::ADD, "objectClass", "top");
-    entry.Append(Ldap::ADD, "objectClass", "organizationalUnit");
-    entry.Append(Ldap::ADD, "ou", test_ou);
+    entry.Append(Ldap::ActionAdd, "objectClass", "top");
+    entry.Append(Ldap::ActionAdd, "objectClass", "organizationalUnit");
+    entry.Append(Ldap::ActionAdd, "ou", test_ou);
 
     //std::list<std::string> vals;
     //vals.push_back("this test organizational unit block");
     //vals.push_back("addons description line 2");
     //vals.push_back("addons description line 3");
 
-    entry.Append(Ldap::ADD, "description", "vals");
+    Ldap::ListEntries result = ldap.Search(object_dn, Ldap::ScopeBase);
+    if(result.size())
+    {
+	std::cerr << "test ou exists: " << object_dn << std::endl << "skipping test...." << std::endl;
+	return 1;
+    }
+
+    entry.Append(Ldap::ActionAdd, "description", "vals");
     std::cout << std::endl << "entry dump: " <<  std::endl << entry << std::endl << std::endl;
 
     // update
@@ -100,14 +108,17 @@ int main(int argc, char **argv)
     if(success)
     {
 	Ldap::Entry entry2(entry.DN());
-	entry2.Append(Ldap::REPLACE, "description", "vals ssssss");
+	entry2.Append(Ldap::ActionReplace, "description", "vals ssssss");
 	success = ldap.Modify(entry2);
 	std::cout << "ldap modify: " <<  ldap.Message() << std::endl;
 	if(! success) return 3;
     }
 
+    std::cout << "ldap compare: " <<
+	(ldap.Compare(object_dn, "ou", "cldap_test_ou") ? "OK" : "FALSE") << std::endl;
+
     // search
-    Ldap::Entries result = ldap.Search(object_dn, Ldap::BASE);
+    result = ldap.Search(object_dn, Ldap::ScopeBase);
     std::cout << std::endl << "ldap search: " << object_dn << std::endl << "found: " << result.size() << " entries." << std::endl << std::endl;
     if(result.size())
     {

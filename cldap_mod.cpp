@@ -18,7 +18,9 @@
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
  ***************************************************************************/
 
+#include <iostream>
 #include <cstring>
+#include <sstream>
 #include <iomanip>
 #include <iterator>
 #include <functional>
@@ -34,279 +36,532 @@ char* StrDup(const char* str)
     return res;
 }
 
-struct Berval : berval
+berval* BervalNew(const char* val, size_t len)
 {
-    Berval()
+    berval* bv = NULL;
+
+    if(len && val)
     {
-	bv_len = 0;
-	bv_val = NULL;
+	bv = new berval();
+
+        bv->bv_len = len;
+        bv->bv_val = new char [len];
+        std::memcpy(bv->bv_val, val, len);
     }
 
-    Berval(const char* val, size_t len)
+    return bv;
+}
+
+void BervalDelete(berval* bv)
+{
+    if(bv)
     {
-	bv_len = 0;
-	bv_val = NULL;
-
-	Assign(val, len);
-    }
-
-    Berval(const berval & ber)
-    {
-	bv_len = 0;
-	bv_val = NULL;
-
-	Assign(ber.bv_val, ber.bv_len);
-    }
-
-    Berval & operator= (const berval & ber)
-    {
-	if(&ber != this)
-	    Assign(ber.bv_val, ber.bv_len);
-
-	return *this;
-    }
-
-    ~Berval()
-    {
-	Clear();
-    }
-
-    void Clear(void)
-    {
-	if(bv_val) delete [] bv_val;
-
-	bv_len = 0;
-	bv_val = NULL;
-    }
-
-    void Assign(const char* val, size_t len)
-    {
-	Clear();
-
-	if(len && val)
+	if(bv->bv_val)
 	{
-	    bv_len = len;
-	    bv_val = new char [len];
-	    std::memcpy(bv_val, val, len);
+	    delete [] bv->bv_val;
+	    bv->bv_val = NULL;
 	}
+        bv->bv_len = 0;
+	delete bv;
     }
-};
+}
 
-Ldap::Mod::Mod(int op, const char* type)
+Ldap::ModBase::ModBase(int op, const char* type)
 {
-    mod_op = op;
-    mod_type = type ? StrDup(type) : NULL;
-    mod_bvalues = NULL;
+    val.mod_op = op;
+    val.mod_type = type ? StrDup(type) : NULL;
+    val.mod_bvalues = NULL;
 
     mod_vals_size = 0;
 }
 
-Ldap::Mod::~Mod()
+bool Ldap::ModBase::IsBinary(void) const
 {
-    Clear();
+    return val.mod_op | LDAP_MOD_BVALUES;
 }
 
-void Ldap::Mod::Clear(void)
+bool Ldap::ModBase::IsOperation(int op) const
 {
-    if(mod_bvalues)
-    {
-	if(mod_op & LDAP_MOD_BVALUES)
-	{
-	    for(berval** bval = mod_bvalues; bval && *bval; ++bval) delete static_cast<Berval*>(*bval);
-	    delete [] mod_bvalues;
-	    mod_bvalues = NULL;
-	}
-	else
-	{
-	    for(char** val = mod_values; val && *val; ++val) delete [] *val;
-	    delete [] mod_values;
-	    mod_values = NULL;
-	}
-    }
-
-    if(mod_type)
-    {
-	delete [] mod_type;
-	mod_type = NULL;
-    }
-
-    mod_op = 0;
+    return (val.mod_op & LDAP_MOD_OP) == op;
 }
 
-bool Ldap::Mod::IsOperation(int op) const
+bool Ldap::ModBase::IsType(const std::string & str) const
 {
-    return (mod_op & LDAP_MOD_OP) == op;
+    return 0 == str.compare(val.mod_type);
 }
 
-bool Ldap::Mod::IsType(const char* str) const
+const LDAPMod* Ldap::ModBase::toLDAPMod(void) const
 {
-    return 0 == std::strcmp(mod_type, str);
+    return & val;
 }
 
-void Ldap::Mod::Append(const char* str)
+bool Ldap::ModStr::Append(const char* str, size_t len)
 {
-    if(mod_values)
+    // create
+    if(! val.mod_values)
     {
-	// add
-	char** itbeg = mod_values;
-	char** itend = mod_values + mod_vals_size - 1; // skip last: always is NULL
-	char** itcur = std::find(itbeg, itend, static_cast<char*>(0));
-
-	if(itcur != itend)
-	    *itcur = StrDup(str);
-	else
-	{
-	    // resize
-	    size_t new_vals_size = mod_vals_size * 2;
-	    char** new_values = new char* [new_vals_size];
-	    std::memset(new_values, 0, sizeof(char*) * new_vals_size);
-	    std::copy(itbeg, itend, new_values);
-	    delete [] mod_values;
-	    mod_values = new_values;
-	    mod_values[mod_vals_size - 1] = StrDup(str);
-	    mod_vals_size = new_vals_size;
-	}
-    }
-    else
-    {
-	// add
 	mod_vals_size = 4;
-	mod_values = new char* [mod_vals_size];
-	std::memset(mod_values, 0, sizeof(char*) * mod_vals_size);
-	mod_values[0] = StrDup(str);
+	val.mod_values = new char* [mod_vals_size];
+	std::memset(val.mod_values, 0, sizeof(char*) * mod_vals_size);
     }
+
+    // find
+    char** itbeg = val.mod_values;
+    char** itend = val.mod_values + mod_vals_size - 1; // skip last: always is NULL
+    char** itcur = std::find(itbeg, itend, static_cast<char*>(0));
+
+    // resize
+    if(itcur == itend)
+    {
+	size_t new_vals_size = mod_vals_size * 2;
+	char** new_values = new char* [new_vals_size];
+	std::memset(new_values, 0, sizeof(char*) * new_vals_size);
+	std::copy(itbeg, itend, new_values);
+	delete [] val.mod_values;
+	val.mod_values = new_values;
+	mod_vals_size = new_vals_size;
+
+	return Append(str, len);
+    }
+
+    // add
+    *itcur = StrDup(str);
+    return true;
 }
 
-void Ldap::Mod::Append(const char* val, size_t len)
+void Ldap::ModStr::Append(const char* str)
 {
-    if(mod_bvalues)
-    {
-	// add
-	berval** itbeg = mod_bvalues;
-	berval** itend = mod_bvalues + mod_vals_size - 1; // skip last: always is NULL
-	berval** itcur = std::find(itbeg, itend, static_cast<berval*>(0));
+    if(str) Append(str, strlen(str));
+}
 
-	if(itcur != itend)
-	    *itcur = new Berval(val, len);
-	else
-	{
-	    // resize
-	    size_t new_vals_size = mod_vals_size * 2;
-	    berval** new_bvalues = new berval* [new_vals_size];
-	    std::memset(new_bvalues, 0, sizeof(berval*) * new_vals_size);
-	    std::copy(itbeg, itend, new_bvalues);
-	    delete [] mod_bvalues;
-	    mod_bvalues = new_bvalues;
-	    mod_bvalues[mod_vals_size - 1] = new Berval(val, len);
-	    mod_vals_size = new_vals_size;
-	}
-    }
-    else
+void Ldap::ModStr::Clear(void)
+{
+    if(val.mod_values)
     {
-	// add
+	for(char** sval = val.mod_values; sval && *sval; ++sval) delete [] *sval;
+	delete [] val.mod_values;
+	val.mod_values = NULL;
+    }
+
+    if(val.mod_type)
+    {
+	delete [] val.mod_type;
+	val.mod_type = NULL;
+    }
+
+    val.mod_op = 0;
+}
+
+std::string Ldap::ModStr::GetStringValue(void) const
+{
+    std::string res;
+
+    if(val.mod_values && val.mod_values[0])
+	res.assign(val.mod_values[0]);
+
+    return res;
+}
+
+std::vector<std::string> Ldap::ModStr::GetStringValues(void) const
+{
+    std::vector<std::string> res;
+    const char* const* vals = val.mod_values;
+
+    while(vals && *vals)
+    {
+        res.push_back(std::string(*vals));
+        ++vals;
+    }
+
+    return res;
+}
+
+std::list<std::string> Ldap::ModStr::GetStringList(void) const
+{
+    std::list<std::string> res;
+    const char* const* vals = val.mod_values;
+
+    while(vals && *vals)
+    {
+        res.push_back(std::string(*vals));
+        ++vals;
+    }
+
+    return res;
+}
+
+std::vector<char> Ldap::ModStr::GetBinaryValue(void) const
+{
+    std::vector<char> res;
+
+    if(val.mod_values && val.mod_values[0])
+        res.assign(val.mod_values[0], val.mod_values[0] + strlen(val.mod_values[0]));
+
+    return res;
+}
+
+std::vector< std::vector<char> > Ldap::ModStr::GetBinaryValues(void) const
+{
+    std::vector< std::vector<char> > res;
+    const char* const* vals = val.mod_values;
+
+    while(vals && *vals)
+    {
+        res.push_back(std::vector<char>(*vals, *vals + strlen(*vals)));
+        ++vals;
+    }
+
+    return res;
+}
+
+std::list< std::vector<char> > Ldap::ModStr::GetBinaryList(void) const
+{
+    std::list< std::vector<char> > res;
+    const char* const* vals = val.mod_values;
+
+    while(vals && *vals)
+    {
+        res.push_back(std::vector<char>(*vals, *vals + strlen(*vals)));
+        ++vals;
+    }
+
+    return res;
+}
+
+bool Ldap::ModBin::Append(const char* ptr, size_t len)
+{
+    // create
+    if(! val.mod_bvalues)
+    {
 	mod_vals_size = 4;
-	mod_bvalues = new berval* [mod_vals_size];
-	std::memset(mod_bvalues, 0, sizeof(berval*) * mod_vals_size);
-	mod_bvalues[0] = new Berval(val, len);
-
-	// set binary
-	mod_op |= LDAP_MOD_BVALUES;
+	val.mod_bvalues = new berval* [mod_vals_size];
+	std::memset(val.mod_bvalues, 0, sizeof(berval*) * mod_vals_size);
     }
-}
 
-const char* const* Ldap::Mod::GetStrValues(void) const
-{
-    return mod_op & LDAP_MOD_BVALUES ? NULL : mod_values;
-}
+    // find
+    berval** itbeg = val.mod_bvalues;
+    berval** itend = val.mod_bvalues + mod_vals_size - 1; // skip last: always is NULL
+    berval** itcur = std::find(itbeg, itend, static_cast<berval*>(0));
 
-const berval* const* Ldap::Mod::GetBinValues(void) const
-{
-    return mod_op & LDAP_MOD_BVALUES ? mod_bvalues : NULL;
-}
-
-#include <openssl/bio.h>
-#include <openssl/evp.h>
-
-namespace OpenSSL
-{
-    std::vector<char> EncodeBase64(const char* ptr, size_t size)
+    // resize
+    if(itcur == itend)
     {
-        BIO* b64 = BIO_new(BIO_f_base64());
-        BIO* bmem = BIO_new(BIO_s_mem());
+	size_t new_vals_size = mod_vals_size * 2;
+	berval** new_bvalues = new berval* [new_vals_size];
+	std::memset(new_bvalues, 0, sizeof(berval*) * new_vals_size);
+	std::copy(itbeg, itend, new_bvalues);
+	delete [] val.mod_bvalues;
+	val.mod_bvalues = new_bvalues;
+	mod_vals_size = new_vals_size;
 
-        b64 = BIO_push(b64, bmem);
-        BIO_write(b64, ptr, size);
-        BIO_flush(b64);
+	return Append(ptr, len);
+    }
 
-        char* bptr = NULL;
-        long  bsze = BIO_get_mem_data(b64, & bptr);
-
-        std::vector<char> result(bsze + 1, 0);
-        std::copy(bptr, bptr + bsze, result.begin());
-        result.back() = '\n';
-
-        BIO_free_all(b64);
-        return result;
-    };
-
-    std::vector<char> DecodeBase64(const char* ptr, size_t size)
-    {
-        BIO* b64 = BIO_new(BIO_f_base64());
-        BIO* bmem = BIO_new_mem_buf(const_cast<char*>(ptr), size);
-        bmem = BIO_push(b64, bmem);
-
-        std::vector<char> result(size, 0);
-        BIO_read(bmem, & result[0], size);
-
-        result.resize(std::distance(result.begin(),
-                std::find_if(result.begin(), result.end(), std::bind2nd(std::equal_to<int>(), 0))));
-
-        BIO_free_all(bmem);
-        return result;
-    };
+    // add
+    *itcur = BervalNew(ptr, len);
+    return true;
 }
 
-std::ostream & Ldap::operator<< (std::ostream & os, const Mod & mod)
+void Ldap::ModBin::Clear(void)
 {
-    const char* strbin = ";binary";
-
-    if(mod.mod_bvalues)
+    if(val.mod_bvalues)
     {
-	if(mod.mod_op & LDAP_MOD_BVALUES)
+	for(berval** bval = val.mod_bvalues; bval && *bval; ++bval) BervalDelete(*bval);
+	delete [] val.mod_bvalues;
+	val.mod_bvalues = NULL;
+    }
+
+    if(val.mod_type)
+    {
+	delete [] val.mod_type;
+	val.mod_type = NULL;
+    }
+
+    val.mod_op = 0;
+}
+
+std::string Ldap::ModBin::GetStringValue(void) const
+{
+    std::string res;
+
+    if(val.mod_bvalues && val.mod_bvalues[0])
+    {
+	const berval* ptr = val.mod_bvalues[0];
+	if(ptr->bv_len && ptr->bv_val) res.assign(ptr->bv_val, ptr->bv_len);
+    }
+
+    return res;
+}
+
+std::vector<std::string> Ldap::ModBin::GetStringValues(void) const
+{
+    std::vector<std::string> res;
+    const berval* const* bvals = val.mod_bvalues;
+
+    while(bvals && *bvals)
+    {
+        res.push_back(std::string((*bvals)->bv_val, (*bvals)->bv_len));
+        ++bvals;
+    }
+
+    return res;
+}
+
+std::list<std::string> Ldap::ModBin::GetStringList(void) const
+{
+    std::list<std::string> res;
+    const berval* const* bvals = val.mod_bvalues;
+
+    while(bvals && *bvals)
+    {
+        res.push_back(std::string((*bvals)->bv_val, (*bvals)->bv_len));
+        ++bvals;
+    }
+
+    return res;
+}
+
+std::vector<char> Ldap::ModBin::GetBinaryValue(void) const
+{
+    std::vector<char> res;
+
+    if(val.mod_bvalues && val.mod_bvalues[0])
+    {
+	const berval* ptr = val.mod_bvalues[0];
+	if(ptr->bv_len && ptr->bv_val) res.assign(ptr->bv_val, ptr->bv_val + ptr->bv_len);
+    }
+
+    return res;
+}
+
+std::vector< std::vector<char> > Ldap::ModBin::GetBinaryValues(void) const
+{
+    std::vector< std::vector<char> > res;
+    const berval* const* bvals = val.mod_bvalues;
+
+    while(bvals && *bvals)
+    {
+        res.push_back(std::vector<char>((*bvals)->bv_val, (*bvals)->bv_val + (*bvals)->bv_len));
+        ++bvals;
+    }
+
+    return res;
+}
+
+std::list< std::vector<char> > Ldap::ModBin::GetBinaryList(void) const
+{
+    std::list< std::vector<char> > res;
+    const berval* const* bvals = val.mod_bvalues;
+
+    while(bvals && *bvals)
+    {
+        res.push_back(std::vector<char>((*bvals)->bv_val, (*bvals)->bv_val + (*bvals)->bv_len));
+        ++bvals;
+    }
+
+    return res;
+}
+
+std::ostream & Ldap::operator<< (std::ostream & os, const ModStr & mod)
+{
+    if(mod.val.mod_type)
+    {
+	const char* const* vals = mod.val.mod_values;
+
+	while(vals && *vals)
 	{
-	    bool binary = std::strlen(mod.mod_type) > std::strlen(strbin) &&
-		0 == std::strcmp(& mod.mod_type[std::strlen(mod.mod_type) - std::strlen(strbin)], strbin);
-
-	    for(berval** bval = mod.mod_bvalues; bval && *bval; ++bval)
-	    {
-		os << mod.mod_type << ": ";
-
-		if(! binary)
-		{
-		    char* bv_end = (*bval)->bv_val + (*bval)->bv_len - 1; // skip last '\0'
-		    if(bv_end != std::find_if((*bval)->bv_val, bv_end, std::bind2nd(std::less<int>(), 20)))
-			binary = true;
-		}
-
-		if(binary)
-		{
-		    std::vector<char> base64 = OpenSSL::EncodeBase64((*bval)->bv_val, (*bval)->bv_len);
-		    std::copy(base64.begin(), base64.end(), std::ostream_iterator<char>(os, ""));
-		}
-		else
-		{
-		    std::copy((*bval)->bv_val, (*bval)->bv_val + (*bval)->bv_len, std::ostream_iterator<char>(os, ""));
-		    os << std::endl;
-		}
-	    }
+	    os << mod.val.mod_type << ": " << *vals << std::endl;
+    	    ++vals;
 	}
-	else
-	    for(char** val = mod.mod_values; val && *val; ++val)
-		os << mod.mod_type << ": " << *val << std::endl;
     }
-    else
-	os << mod.mod_type << ":" << std::endl;
 
     return os;
 }
 
+std::ostream & Ldap::operator<< (std::ostream & os, const ModBin & mod)
+{
+    if(mod.val.mod_type)
+    {
+	const berval* const* bvals = mod.val.mod_bvalues;
+
+	while(bvals && *bvals)
+	{
+	    os << Base64::StringWrap(mod.val.mod_type, std::string((*bvals)->bv_val, (*bvals)->bv_len)) << std::endl;
+    	    ++bvals;
+	}
+    }
+
+    return os;
+}
+
+namespace Base64
+{
+    bool opt_binary_only = false;
+
+    void SetBinaryOnly(bool f)
+    {
+	opt_binary_only = f;
+    }
+
+    int encodeChar(int v)
+    {
+	// 0 <=> 25
+	if(v <= ('Z' - 'A'))
+    	    return v + 'A';
+
+	// 26 <=> 51
+	if(26 <= v && v <= 26 + ('z' - 'a'))
+    	    return v + 'a' - 26;
+
+	// 52 <=> 61
+	if(52 <= v && v <= 52 + ('9' - '0'))
+    	    return v + '0' - 52;
+
+	if(v == 62)
+    	    return '+';
+
+	if(v == 63)
+	    return '/';
+
+	return 0;
+    }
+
+    int decodeChar(int v)
+    {
+	if(v == '+')
+    	    return 62;
+
+	if(v == '/')
+    	    return 63;
+
+	if('0' <= v && v <= '9')
+    	    return v - '0' + 52;
+
+	if('A' <= v && v <= 'Z')
+    	    return v - 'A';
+
+	if('a' <= v && v <= 'z')
+    	    return v - 'a' + 26;
+
+	return 0;
+    }
+
+    std::vector<char> encode(const char* src, size_t srcsz)
+    {
+	std::vector<char> dst;
+
+	size_t dstsz = 4 * srcsz / 3 + 1;
+	dst.reserve(dstsz);
+
+	for(size_t ii = 0; ii < srcsz; ii += 3)
+	{
+    	    int b1 = static_cast<unsigned char>(src[ii]);
+    	    int b2 = static_cast<unsigned char>(ii + 1 < srcsz ? src[ii + 1] : 0);
+    	    int b3 = static_cast<unsigned char>(ii + 2 < srcsz ? src[ii + 2] : 0);
+
+    	    int triple = (b1 << 16) | (b2 << 8) | b3;
+
+    	    dst.push_back(encodeChar(0x3F & (triple >> 18)));
+    	    dst.push_back(encodeChar(0x3F & (triple >> 12)));
+    	    dst.push_back(ii + 1 < srcsz ? encodeChar(0x3F & (triple >> 6)) : '=');
+    	    dst.push_back(ii + 2 < srcsz ? encodeChar(0x3F & triple) : '=');
+	}
+
+	return dst;
+    }
+
+    std::vector<char> decode(const char* src, size_t srcsz)
+    {
+	std::vector<char> dst;
+
+	if(0 < srcsz && srcsz % 4 == 0)
+	{
+    	    size_t dstsz = 3 * srcsz / 4;
+
+    	    if(src[srcsz - 1] == '=') dstsz--;
+    	    if(src[srcsz - 2] == '=') dstsz--;
+
+    	    dst.reserve(dstsz);
+
+    	    for(size_t ii = 0; ii < srcsz; ii += 4)
+    	    {
+        	int sextet_a = decodeChar(src[ii]);
+        	int sextet_b = decodeChar(src[ii + 1]);
+        	int sextet_c = decodeChar(src[ii + 2]);
+        	int sextet_d = decodeChar(src[ii + 3]);
+
+        	int triple = (sextet_a << 18) + (sextet_b << 12) + (sextet_c << 6) + sextet_d;
+
+        	if(dst.size() < dstsz) dst.push_back((triple >> 16) & 0xFF);
+        	if(dst.size() < dstsz) dst.push_back((triple >> 8) & 0xFF);
+        	if(dst.size() < dstsz) dst.push_back(triple & 0xFF);
+    	    }
+	}
+	else
+	{
+    	    std::cerr << "Tools::base64Decode: " << "incorrect size buf: " << srcsz;
+	}
+
+	return dst;
+    }
+
+    std::string StringWrap(const std::string & type, const std::string & value)
+    {
+	std::ostringstream os;
+
+	unsigned int wrap = 76;
+        bool binary = std::string::npos != type.find(";binary");
+	bool base64 = binary;
+
+    	os << type << ":";
+
+	// greater wrap
+	if(!opt_binary_only && !base64)
+	    base64 = os.str().size() + 1 + value.size() > wrap;
+
+	// find not ascii
+	if(!base64)
+	{
+	    auto it = value.begin();
+	    if(opt_binary_only)
+	    {
+		for(; it != value.end(); ++it) if(0 <= *it && std::iscntrl(*it)) break;
+	    }
+	    else
+	    {
+		for(; it != value.end(); ++it) if(0 == std::isgraph(*it)) break;
+	    }
+	    if(it != value.end()) base64 = true;
+	}
+
+	if(base64)
+	{
+	    // double ::
+	    os << ":" << " ";
+    	    std::vector<char> base64 = Base64::encode(value.c_str(), value.size());
+    	    std::copy(base64.begin(), base64.end(), std::ostream_iterator<char>(os, ""));
+	}
+	else
+    	    os << " " << value;
+
+	std::string str = os.str();
+
+	if(wrap && base64 && str.size() > wrap)
+	{
+    	    size_t pos = 0;
+
+	    os.str("");
+    	    os << str.substr(pos, wrap) << std::endl;
+            pos += wrap;
+
+            while(pos < str.size())
+            {
+        	os << " " << str.substr(pos, wrap - 1);
+                pos += wrap - 1;
+		if(pos < str.size()) os << std::endl;
+            }
+	}
+
+	return os.str();
+    }
+}

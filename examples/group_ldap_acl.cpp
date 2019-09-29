@@ -33,31 +33,33 @@
 #include <netdb.h>
 
 #include "cldap.h"
-#define VERSION "1.0"
+#define VERSION "1.4"
 
 void help(const std::string & name)
 {
-    std::cout << name << " version " << VERSION << std::endl;
-    std::cout << "Usage: " << name << " [OPTIONS]" << std::endl;
-    std::cout << "  -H    URI connect LDAP, (ldaps://ldap.server.com)" << std::endl;
-    std::cout << "  -b    full DN to group" << std::endl;
-    std::cout << "  -a    search attributes (defaults memberUid)" << std::endl;
-    std::cout << "  -f    path to authorization file (anonymous bind defaults)" << std::endl;
-    std::cout << "  -i    insensitive" << std::endl << std::endl;
-    std::cout << "  -h    print this help and exit" << std::endl << std::endl;
-    std::cout << "  example squid ACL:" << std::endl;
-    std::cout << "  external_acl_type type_comp_allow_map ttl=20 children=4 %SRC /path/to/group_ldap_acl -H ldaps://ldap.org -b cn=deny_computers,ou=group,dc=org" << std::endl;
-    std::cout << "  acl COMP_ALLOW external type_comp_boss_map" << std::endl;
-    std::cout << "  ..." << std::endl;
-    std::cout << "  http_access deny !COMP_ALLOW" << std::endl << std::endl;
-    std::cout << "  # for check %LOGIN need define proxy_auth above" << std::endl;
-    std::cout << "  external_acl_type type_users_map ttl=20 children=10 %LOGIN /path/to/group_ldap_acl -H ldaps://ldap.org -b cn=allow_user,ou=group,dc=org" << std::endl;
-    std::cout << "  acl USERS_ALLOW external type_users_map" << std::endl;
-    std::cout << "  ..." << std::endl;
-    std::cout << "  http_access allow USERS_ALLOW" << std::endl << std::endl << std::endl;
-    std::cout << "  authorization file:" << std::endl;
-    std::cout << "  login dn" << std::endl;
-    std::cout << "  password" << std::endl << std::endl;
+    std::cout << name << " version " << VERSION << ", cldap: " << Ldap::getVersion() << std::endl <<
+	"Usage: " << name << " [OPTIONS]" << std::endl <<
+	"  -H    specify URI(s) referring to the ldap server(s); only the protocol/host/port fields are allowed; a list of URI, separated by commas." << std::endl <<
+	"        URI connect LDAP, (ldaps://ldap.server.com or ldap://ldap1.server.com,ldaps://ldap2.server.com)" << std::endl <<
+	"  -b    full DN to group" << std::endl <<
+	"  -a    search attributes (defaults memberUid)" << std::endl <<
+	"  -f    path to authorization file (anonymous bind defaults)" << std::endl <<
+	"  -i    insensitive" << std::endl << std::endl <<
+	"  -t    test only" << std::endl <<
+	"  -h    print this help and exit" << std::endl << std::endl <<
+	"  example squid ACL:" << std::endl <<
+	"  external_acl_type type_comp_allow_map ttl=20 children=4 %SRC /path/to/group_ldap_acl -H ldaps://ldap.org -b cn=deny_computers,ou=group,dc=org" << std::endl <<
+	"  acl COMP_ALLOW external type_comp_boss_map" << std::endl <<
+	"  ..." << std::endl <<
+	"  http_access deny !COMP_ALLOW" << std::endl << std::endl <<
+	"  # for check %LOGIN need define proxy_auth above" << std::endl <<
+	"  external_acl_type type_users_map ttl=20 children=10 %LOGIN /path/to/group_ldap_acl -H ldaps://ldap.org -b cn=allow_user,ou=group,dc=org" << std::endl <<
+	"  acl USERS_ALLOW external type_users_map" << std::endl <<
+	"  ..." << std::endl <<
+	"  http_access allow USERS_ALLOW" << std::endl << std::endl << std::endl <<
+	"  authorization file:" << std::endl <<
+	"  login dn" << std::endl <<
+	"  password" << std::endl << std::endl;
 }
 
 void parse(const std::string & file, std::string & login, std::string & passwd)
@@ -76,6 +78,26 @@ void parse(const std::string & file, std::string & login, std::string & passwd)
     stream.close();
 }
 
+std::list<std::string> split(const std::string & str, int sep)
+{
+    std::list<std::string> list;
+    size_t pos1 = 0;
+    size_t pos2 = std::string::npos;
+
+    while(pos1 < str.size() &&
+        std::string::npos != (pos2 = str.find(sep, pos1)))
+    {
+        list.push_back(str.substr(pos1, pos2 - pos1));
+        pos1 = pos2 + 1;
+    }
+
+    // tail
+    if(pos1 < str.size())
+        list.push_back(str.substr(pos1, str.size() - pos1));
+
+    return list;
+}
+
 void lower(std::string & str)
 {
     std::transform(str.begin(), str.end(), str.begin(), ::tolower);
@@ -87,10 +109,12 @@ int main(int argc, char **argv)
 
     std::string uri, group_dn, login, passwd, authfile;
     std::string attr("memberUid");
+    std::list<std::string> URIs;
     const std::string name(argv[0]);
     bool insensitive = false;
+    bool test = false;
 
-    while((c = getopt(argc, argv, "H:b:f:a:ih")) != -1)
+    while((c = getopt(argc, argv, "H:b:f:a:ith")) != -1)
     {
        switch(c)
        {
@@ -114,6 +138,10 @@ int main(int argc, char **argv)
 		insensitive = true;
                 break;
 
+            case 't':
+		test = true;
+                break;
+
             case 'h':
                 help(name);
                 return 0;
@@ -127,27 +155,46 @@ int main(int argc, char **argv)
         help(name);
         return 0;
     }
+    else
+    {
+	URIs = split(uri, ',');
+    }
 
+    Ldap::Pools pools;
     if(authfile.size()) parse(authfile, login, passwd);
 
-    Ldap::Server ldap;
-
-    ldap.Connect(uri);
-
-    if(ldap.Error())
+    for(auto it = URIs.begin(); it != URIs.end(); ++it)
     {
-        std::cout << "error: " <<  ldap.Message() << std::endl;
+	pools.AddServer(Ldap::Info(*it));
 
+	if(pools.back().Connect(*it) && pools.back().Bind(login, passwd))
+	    break;
+
+	std::cerr << "URI: " << *it << ", error: " <<  pools.back().Message() << std::endl;
+    }
+
+
+
+    if(0 == std::count_if(pools.begin(), pools.end(), std::mem_fun_ref(&Ldap::Server::IsConnected)))
+    {
+	std::cerr << "LDAP servers not connected" << std::endl;
         return 1;
     }
 
-    ldap.Bind(login, passwd);
-
-    if(ldap.Error())
+    if(test)
     {
-        std::cout << "error: " <<  ldap.Message() << std::endl;
+        const Ldap::ListEntries & result = pools.Search(group_dn, Ldap::ScopeBase);
 
-        return 1;
+        if(result.size())
+        {
+	    std::list<std::string> values = result.front().GetStringList(attr);
+
+    	    std::cerr << "result count: " << result.size() << std::endl;
+    	    std::cerr << "values count: " << values.size() << std::endl;
+    	    for(auto it = values.begin(); it != values.end(); ++it)
+    		std::cerr << "value: " << *it << std::endl;
+	}
+	return 1;
     }
 
     std::string stream;
@@ -157,51 +204,39 @@ int main(int argc, char **argv)
 
     while(std::cin >> stream)
     {
-        if(ldap.Ping())
-        {
-	    const Ldap::Entries & result = ldap.Search(group_dn, Ldap::BASE);
+	const Ldap::ListEntries & result = pools.Search(group_dn, Ldap::ScopeBase);
 
-	    if(result.size())
-	    {
-        	std::list<std::string> values = result.front().GetStringList(attr);
+	if(result.size())
+	{
+    	    std::list<std::string> values = result.front().GetStringList(attr);
 
-        	if(insensitive)
-        	{
-        	    lower(stream);
-        	    std::for_each(values.begin(), values.end(), lower);
-		}
-
-        	if(values.end() != std::find(values.begin(), values.end(), stream)) std::cout << "OK" << std::endl;
-        	else
-        	// possible ip address (3 dots)
-        	if(3 == std::count(stream.begin(), stream.end(), '.') &&
-            	    inet_aton(stream.c_str(), &in) &&
-            	    (hp = gethostbyaddr((char *) &in.s_addr, sizeof(in.s_addr), AF_INET)))
-        	{
-            	    std::string hostname(hp->h_name);
-    		    if(insensitive) lower(hostname);
-
-            	    if(values.end() != std::find(values.begin(), values.end(), hostname)) std::cout << "OK" << std::endl;
-            	    else std::cout << "ERR" << std::endl;
-        	}
-        	else
-            	    std::cout << "ERR" << std::endl;
+    	    if(insensitive)
+    	    {
+        	lower(stream);
+        	std::for_each(values.begin(), values.end(), lower);
 	    }
-        }
-        else
-        {
-            std::cerr << name << ": connection down" << std::endl;
-            std::cout << "ERR" << std::endl;
 
-	    ldap.Disconnect();
-	    ldap.Connect(uri);
-	    ldap.Bind(login, passwd);
-        }
+    	    if(values.end() != std::find(values.begin(), values.end(), stream)) std::cout << "OK" << std::endl;
+    	    else
+    	    // possible ip address (3 dots)
+    	    if(3 == std::count(stream.begin(), stream.end(), '.') &&
+            	inet_aton(stream.c_str(), &in) &&
+            	(hp = gethostbyaddr((char *) &in.s_addr, sizeof(in.s_addr), AF_INET)))
+    	    {
+            	std::string hostname(hp->h_name);
+    		if(insensitive) lower(hostname);
+
+            	if(values.end() != std::find(values.begin(), values.end(), hostname)) std::cout << "OK" << std::endl;
+            	else std::cout << "ERR" << std::endl;
+    	    }
+    	    else
+            	std::cout << "ERR" << std::endl;
+	}
+    	else
+            std::cout << "ERR" << std::endl;
 
         std::cout.flush();
     }
-
-    ldap.Disconnect();
 
     return 0;
 }

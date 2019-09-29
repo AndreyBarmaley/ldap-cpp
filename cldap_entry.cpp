@@ -24,13 +24,11 @@
 
 Ldap::Entry::Entry(const std::string & str) : dn(str)
 {
-    reserve(32);
-    push_back(NULL);
+    values.reserve(32);
 }
 
 Ldap::Entry::~Entry(void)
 {
-    for(iterator it = begin(); it != end(); ++it) delete *it;
 }
 
 void Ldap::Entry::SetDN(const std::string & str)
@@ -47,51 +45,34 @@ void Ldap::Entry::Append(int op, const std::string & attr, const std::string & v
 {
     if(attr.size() && value.size())
     {
-	iterator it = begin();
+	auto it = PushBack(attr, op, false);
 
-	for(; it != end(); ++it)
-	    if(*it && (*it)->IsType(attr.c_str()) && (*it)->IsOperation(op)) break;
-
-	if(it == end())
-	    it = PushBack(new Mod(op, attr.c_str()));
-
-	(*it)->Append(value.c_str());
+	if(it == values.end())
+	    (*it)->Append(value);
     }
 }
 
-void Ldap::Entry::Append(int op, const std::string & attr, const std::vector<std::string> & values)
+void Ldap::Entry::Append(int op, const std::string & attr, const std::vector<std::string> & vals)
 {
-    if(attr.size() && values.size())
+    if(attr.size() && vals.size())
     {
-	iterator it = begin();
+	auto it1 = PushBack(attr, op, false);
 
-	for(; it != end(); ++it)
-	    if(*it && (*it)->IsType(attr.c_str()) && (*it)->IsOperation(op)) break;
-
-	if(it == end())
-	    it = PushBack(new Mod(op, attr.c_str()));
-
-	for(std::vector<std::string>::const_iterator
-	    it2 = values.begin(); it2 != values.end(); ++it2)
-	    (*it)->Append((*it2).c_str());
+	if(it1 == values.end())
+	    for(auto it2 = vals.begin(); it2 != vals.end(); ++it2)
+		(*it1)->Append(*it2);
     }
 }
 
-void Ldap::Entry::Append(int op, const std::string & attr, const std::list<std::string> & values)
+void Ldap::Entry::Append(int op, const std::string & attr, const std::list<std::string> & vals)
 {
-    if(attr.size() && values.size())
+    if(attr.size() && vals.size())
     {
-	iterator it = begin();
+	auto it1 = PushBack(attr, op, false);
 
-	for(; it != end(); ++it)
-	    if(*it && (*it)->IsType(attr.c_str()) && (*it)->IsOperation(op)) break;
-
-	if(it == end())
-	    it = PushBack(new Mod(op, attr.c_str()));
-
-	for(std::list<std::string>::const_iterator
-	    it2 = values.begin(); it2 != values.end(); ++it2)
-	    (*it)->Append((*it2).c_str());
+	if(it1 == values.end())
+	    for(auto it2 = vals.begin(); it2 != vals.end(); ++it2)
+		(*it1)->Append(*it2);
     }
 }
 
@@ -99,74 +80,52 @@ void Ldap::Entry::Append(int op, const std::string & attr, const std::vector<cha
 {
     if(attr.size() && value.size())
     {
-	iterator it = begin();
+	auto it = PushBack(attr, op, true);
 
-	for(; it != end(); ++it)
-	    if(*it && (*it)->IsType(attr.c_str()) && (*it)->IsOperation(op)) break;
-
-	if(it == end())
-	    it = PushBack(new Mod(op, attr.c_str()));
-
-	(*it)->Append(&value[0], value.size());
+	if(it == values.end())
+	    (*it)->Append(value);
     }
 }
 
-void Ldap::Entry::Append(int op, const std::string & attr, const std::vector< std::vector<char> > & values)
+void Ldap::Entry::Append(int op, const std::string & attr, const std::vector< std::vector<char> > & vals)
 {
-    if(attr.size() && values.size())
+    if(attr.size() && vals.size())
     {
-	iterator it = begin();
+	auto it1 = PushBack(attr, op, true);
 
-	for(; it != end(); ++it)
-	    if(*it && (*it)->IsType(attr.c_str()) && (*it)->IsOperation(op)) break;
-
-	if(it == end())
-	    it = PushBack(new Mod(op, attr.c_str()));
-
-	for(std::vector< std::vector<char> >::const_iterator
-	    it2 = values.begin(); it2 != values.end(); ++it2)
-	    (*it)->Append(&(*it2)[0], (*it2).size());
+	if(it1 == values.end())
+	    for(auto it2 = vals.begin(); it2 != vals.end(); ++it2)
+		(*it1)->Append(*it2);
     }
 }
 
-void Ldap::Entry::Append(int op, const std::string & attr, const std::list< std::vector<char> > & values)
+void Ldap::Entry::Append(int op, const std::string & attr, const std::list< std::vector<char> > & vals)
 {
-    if(attr.size() && values.size())
+    if(attr.size() && vals.size())
     {
-	iterator it = begin();
+	auto it1 = PushBack(attr, op, true);
 
-	for(; it != end(); ++it)
-	    if(*it && (*it)->IsType(attr.c_str()) && (*it)->IsOperation(op)) break;
-
-	if(it == end())
-	    it = PushBack(new Mod(op, attr.c_str()));
-
-	for(std::list< std::vector<char> >::const_iterator
-	    it2 = values.begin(); it2 != values.end(); ++it2)
-	    (*it)->Append(&(*it2)[0], (*it2).size());
+	if(it1 == values.end())
+	    for(auto it2 = vals.begin(); it2 != vals.end(); ++it2)
+		(*it1)->Append(*it2);
     }
+}
+
+Ldap::Entry::const_iterator Ldap::Entry::FindType(const std::string & type) const
+{
+    for(auto it = values.begin(); it != values.end(); ++it)
+	if((*it).get() && (*it).get()->IsType(type)) return it;
+    return values.end();
 }
 
 std::string Ldap::Entry::GetStringValue(const std::string & attr) const
 {
     if(attr.size())
     {
-	const_iterator it = find_if(begin(), end(), std::bind2nd(std::mem_fun(&Mod::IsType), attr.c_str()));
+	auto it = FindType(attr);
 
-	if(it != end() && *it)
-	{
-	    if(const berval* const* bvals = (*it)->GetBinValues())
-	    {
-		if(bvals && bvals[0])
-		    return std::string(bvals[0]->bv_val, bvals[0]->bv_len);
-	    }
-	    else
-	    if(const char* const* vals = (*it)->GetStrValues())
-	    {
-		if(vals && vals[0])
-		    return std::string(vals[0]);
-	    }
-	}
+	if(it != values.end())
+	    return (*it)->GetStringValue();
     }
 
     return std::string();
@@ -179,28 +138,10 @@ Ldap::Entry::GetStringValues(const std::string & attr) const
 
     if(attr.size())
     {
-	const_iterator it = find_if(begin(), end(), std::bind2nd(std::mem_fun(&Mod::IsType), attr.c_str()));
+	auto it = FindType(attr);
 
-	if(it != end() && *it)
-	{
-	    if(const berval* const* bvals = (*it)->GetBinValues())
-	    {
-		while(bvals && *bvals)
-		{
-		    res.push_back(std::string((*bvals)->bv_val, (*bvals)->bv_len));
-		    ++bvals;
-		}
-	    }
-	    else
-	    if(const char* const* vals = (*it)->GetStrValues())
-	    {
-		while(vals && *vals)
-		{
-		    res.push_back(std::string(*vals));
-		    ++vals;
-		}
-	    }
-	}
+	if(it != values.end())
+	    return (*it)->GetStringValues();
     }
 
     return res;
@@ -213,28 +154,10 @@ Ldap::Entry::GetStringList(const std::string & attr) const
 
     if(attr.size())
     {
-	const_iterator it = find_if(begin(), end(), std::bind2nd(std::mem_fun(&Mod::IsType), attr.c_str()));
+	auto it = FindType(attr);
 
-	if(it != end() && *it)
-	{
-	    if(const berval* const* bvals = (*it)->GetBinValues())
-	    {
-		while(bvals && *bvals)
-		{
-		    res.push_back(std::string((*bvals)->bv_val, (*bvals)->bv_len));
-		    ++bvals;
-		}
-	    }
-	    else
-	    if(const char* const* vals = (*it)->GetStrValues())
-	    {
-		while(vals && *vals)
-		{
-		    res.push_back(std::string(*vals));
-		    ++vals;
-		}
-	    }
-	}
+	if(it != values.end())
+	    return (*it)->GetStringList();
     }
 
     return res;
@@ -244,22 +167,10 @@ std::vector<char> Ldap::Entry::GetBinaryValue(const std::string & attr) const
 {
     if(attr.size())
     {
-	const_iterator it = find_if(begin(), end(), std::bind2nd(std::mem_fun(&Mod::IsType), attr.c_str()));
+	auto it = FindType(attr);
 
-	if(it != end() && *it)
-	{
-	    if(const berval* const* bvals = (*it)->GetBinValues())
-	    {
-		if(bvals && bvals[0])
-		    return std::vector<char>(bvals[0]->bv_val, bvals[0]->bv_val + bvals[0]->bv_len);
-	    }
-	    else
-	    if(const char* const* vals = (*it)->GetStrValues())
-	    {
-		if(vals && vals[0])
-		    return std::vector<char>(vals[0], vals[0] + strlen(vals[0]));
-	    }
-	}
+	if(it != values.end())
+	    return (*it)->GetBinaryValue();
     }
 
     return std::vector<char>();
@@ -272,28 +183,10 @@ Ldap::Entry::GetBinaryValues(const std::string & attr) const
 
     if(attr.size())
     {
-	const_iterator it = find_if(begin(), end(), std::bind2nd(std::mem_fun(&Mod::IsType), attr.c_str()));
+	auto it = FindType(attr);
 
-	if(it != end() && *it)
-	{
-	    if(const berval* const* bvals = (*it)->GetBinValues())
-	    {
-		while(bvals && *bvals)
-		{
-		    res.push_back(std::vector<char>((*bvals)->bv_val, (*bvals)->bv_val + (*bvals)->bv_len));
-		    ++bvals;
-		}
-	    }
-	    else
-	    if(const char* const* vals = (*it)->GetStrValues())
-	    {
-		while(vals && *vals)
-		{
-		    res.push_back(std::vector<char>(*vals, *vals + strlen(*vals)));
-		    ++vals;
-		}
-	    }
-	}
+	if(it != values.end())
+	    return (*it)->GetBinaryValues();
     }
 
     return res;
@@ -306,49 +199,65 @@ Ldap::Entry::GetBinaryList(const std::string & attr) const
 
     if(attr.size())
     {
-	const_iterator it = find_if(begin(), end(), std::bind2nd(std::mem_fun(&Mod::IsType), attr.c_str()));
+	auto it = FindType(attr);
 
-	if(it != end() && *it)
-	{
-	    if(const berval* const* bvals = (*it)->GetBinValues())
-	    {
-		while(bvals && *bvals)
-		{
-		    res.push_back(std::vector<char>((*bvals)->bv_val, (*bvals)->bv_val + (*bvals)->bv_len));
-		    ++bvals;
-		}
-	    }
-	    else
-	    if(const char* const* vals = (*it)->GetStrValues())
-	    {
-		while(vals && *vals)
-		{
-		    res.push_back(std::vector<char>(*vals, *vals + strlen(*vals)));
-		    ++vals;
-		}
-	    }
-	}
+	if(it != values.end())
+	    return (*it)->GetBinaryList();
     }
 
     return res;
 }
 
-Ldap::Entry::iterator Ldap::Entry::PushBack(Mod* mod)
+Ldap::Entry::iterator Ldap::Entry::PushBack(const std::string & type, int op, bool binary)
 {
-    push_back(NULL);
-    iterator it = std::find(begin(), end(), static_cast<Mod*>(0));
-    *it = mod;
-    return it;
+    for(auto it = values.begin(); it != values.end(); ++it)
+	if((*it).get() && ((*it).get()->IsBinary() == binary) &&
+	    (*it).get()->IsType(type) && (*it)->IsOperation(op)) return it;
+
+    if(binary)
+    {
+	values.push_back(std::shared_ptr<ModBase>(new ModBin(op, type)));
+	return values.end() - 1;
+    }
+    else
+    {
+	values.push_back(std::shared_ptr<ModBase>(new ModStr(op, type)));
+	return values.end() - 1;
+    }
+
+    return values.end();
+}
+
+std::vector<LDAPMod*> Ldap::Entry::toLDAPMods(void) const
+{
+    std::vector<LDAPMod*> v;
+
+    v.reserve(values.size() + 1);
+
+    for(auto it = values.begin(); it != values.end(); ++it)
+	if((*it).get())
+	    v.push_back(const_cast<LDAPMod*>((*it).get()->toLDAPMod()));
+
+    return v;
 }
 
 std::ostream & Ldap::operator<< (std::ostream & os, const Entry & entry)
 {
-    os << "dn: " << entry.dn << std::endl;
+    os << Base64::StringWrap("dn", entry.dn) << std::endl;
 
-    for(Entry::const_iterator
-	it = entry.begin(); it != entry.end(); ++it)
-	if(*it) os << **it;
+    for(auto it = entry.values.begin(); it != entry.values.end(); ++it)
+    {
+	if((*it)->IsBinary())
+	{
+	    const ModBin* mod = dynamic_cast<const ModBin*>((*it).get());
+	    if(mod) os << *mod;
+	}
+	else
+	{
+	    const ModStr* mod = dynamic_cast<const ModStr*>((*it).get());
+	    if(mod) os << *mod;
+	}
+    }
 
     return os;
 }
-

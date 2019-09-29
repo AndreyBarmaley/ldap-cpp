@@ -25,33 +25,95 @@
 
 namespace Ldap
 {
-    class Server;
+    class Entry;
 
-    class Mod : protected LDAPMod
+    class ModBase
     {
     public:
-	Mod(int, const char*);
-	~Mod();
+	ModBase(int, const char*);
+	virtual ~ModBase() {}
 
-	void		Append(const char*);
-	void		Append(const char*, size_t);
+	virtual void	Clear(void) = 0;
+	virtual bool	Append(const char*, size_t) = 0;
 
-	void		Clear(void);
+	void		Append(const std::string & str) { if(str.size()) Append(str.c_str(), str.size()); }
+	void		Append(const std::vector<char> & v) { if(v.size()) Append(& v[0], v.size()); }
 
-	bool		IsType(const char*) const;
+
+	bool		IsType(const std::string &) const;
+	bool		IsBinary(void) const;
 	bool		IsOperation(int) const;
 
-	const char* const*	GetStrValues(void) const;
-	const berval* const*	GetBinValues(void) const;
+	virtual std::string			GetStringValue(void) const = 0;
+	virtual std::vector<std::string>	GetStringValues(void) const = 0;
+	virtual std::list<std::string>		GetStringList(void) const = 0;
 
-    private:
-    	friend class Server;
-	friend std::ostream & operator<< (std::ostream &, const Mod &);
+	virtual std::vector<char>		GetBinaryValue(void) const = 0;
+	virtual std::vector< std::vector<char> >GetBinaryValues(void) const = 0;
+	virtual std::list< std::vector<char> >	GetBinaryList(void) const = 0;
 
+    protected:
+	friend class Entry;
+
+	const LDAPMod*	toLDAPMod(void) const;
+
+	LDAPMod		val;
 	size_t		mod_vals_size;
     };
 
-    std::ostream & operator<< (std::ostream &, const Mod &);
-};
+    class ModStr : public ModBase
+    {
+	friend std::ostream & operator<< (std::ostream &, const ModStr &);
+
+    public:
+	ModStr(int op, const std::string & type) : ModBase(op, type.c_str()) {}
+	~ModStr() { Clear(); }
+
+	void		Clear(void);
+	bool		Append(const char*, size_t);
+	void		Append(const char*);
+
+	std::string	GetStringValue(void) const;
+	std::vector<std::string>
+			GetStringValues(void) const;
+	std::list<std::string>
+			GetStringList(void) const;
+
+	std::vector<char>
+			GetBinaryValue(void) const;
+	std::vector< std::vector<char> >
+			GetBinaryValues(void) const;
+	std::list< std::vector<char> >
+			GetBinaryList(void) const;
+    };
+
+    class ModBin : public ModBase
+    {
+	friend std::ostream & operator<< (std::ostream &, const ModBin &);
+
+    public:
+	ModBin(int op, const std::string & type) : ModBase(op | LDAP_MOD_BVALUES, type.c_str()) {}
+	~ModBin() { Clear(); }
+
+	void		Clear(void);
+	bool		Append(const char*, size_t);
+
+	std::string	GetStringValue(void) const;
+	std::vector<std::string>
+			GetStringValues(void) const;
+	std::list<std::string>
+			GetStringList(void) const;
+
+	std::vector<char>
+			GetBinaryValue(void) const;
+	std::vector< std::vector<char> >
+			GetBinaryValues(void) const;
+	std::list< std::vector<char> >
+			GetBinaryList(void) const;
+    };
+
+    std::ostream & operator<< (std::ostream &, const ModStr &);
+    std::ostream & operator<< (std::ostream &, const ModBin &);
+}
 
 #endif

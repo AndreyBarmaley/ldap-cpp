@@ -21,13 +21,14 @@
 #ifndef CLDAP_ENTRY_H
 #define CLDAP_ENTRY_H
 
+#include <memory>
 #include "cldap_mod.h"
 
 namespace Ldap
 {
     class Server;
 
-    class Entry : protected std::vector<Mod*>
+    class Entry
     {
 	public:
 	    Entry(const std::string &);
@@ -56,16 +57,26 @@ namespace Ldap
 	    std::list< std::vector<char> >
 				GetBinaryList(const std::string &) const;
 
-	private:
+	    int			Size(void) const { return values.size(); }
+
+	protected:
 	    friend class Server;
 	    friend std::ostream & operator<< (std::ostream &, const Entry &);
 
-	    iterator		PushBack(Mod*);
+	    typedef std::vector< std::shared_ptr<ModBase> >::iterator iterator;
+	    typedef std::vector< std::shared_ptr<ModBase> >::const_iterator const_iterator;
+
+	    std::vector<LDAPMod*>
+				toLDAPMods(void) const;
+	    iterator		PushBack(const std::string & type, int op, bool binary);
+	    const_iterator	FindType(const std::string &) const;
 
 	    std::string		dn;
-    };
+	    std::vector< std::shared_ptr<ModBase> >
+				values;
+	};
 
     std::ostream & operator<< (std::ostream &, const Entry &);
-};
+}
 
 #endif

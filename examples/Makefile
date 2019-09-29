@@ -1,10 +1,17 @@
 # makefile
 
-TARGETS = test ping groups group_ldap_acl
-LIBS = -lldap -llber  -lcrypto -lssl ../libcldap++.a
-CFLAGS = -O2 -Wall -I..
+TARGETS	:= test ping groups group_ldap_acl cat
+CC	:= g++
 
-CC = g++
+LIBS	:= -lldap -llber ../libcldap++.a
+CFLAGS	:= -std=c++0x -Wall -I..
+
+
+ifdef DEBUG
+CFLAGS  := $(CFLAGS) -O0 -g -pedantic -DWITH_DEBUG
+else
+CFLAGS  := -O2 $(CFLAGS)
+endif
 
 all: $(TARGETS)
 

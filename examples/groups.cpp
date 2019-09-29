@@ -19,10 +19,20 @@
  ***************************************************************************/
 
 #include <iostream>
+#include <cstring>
+
 #include <unistd.h>
 #include <pwd.h>
 
 #include "cldap.h"
+
+std::string StringReplace(const std::string & src, const char* pred, const std::string & val)
+{
+    std::string res = src;
+    size_t pos = std::string::npos;
+    while(std::string::npos != (pos = res.find(pred))) res.replace(pos, std::strlen(pred), val);
+    return res;
+}
 
 int main(int argc, char **argv)
 {
@@ -32,9 +42,10 @@ int main(int argc, char **argv)
     std::string uri;
     std::string group_dn;
     std::string filter("memberUid=$uid");
+    bool debug = false;
     bool endline = false;
 
-    while((c = getopt(argc, argv, "H:b:a:n")) != -1)
+    while((c = getopt(argc, argv, "H:b:a:nd")) != -1)
     {
        switch(c)
        {
@@ -52,6 +63,10 @@ int main(int argc, char **argv)
 
 	    case 'n':
 		endline = true;
+		break;
+
+	    case 'd':
+		debug = true;
 		break;
 
            default:
@@ -76,7 +91,7 @@ int main(int argc, char **argv)
 
     if(ldap.Error())
     {
-	std::cout << "error: " <<  ldap.Message() << std::endl;
+	std::cerr << "error: " <<  ldap.Message() << std::endl;
 	return 1;
     }
 
@@ -84,25 +99,23 @@ int main(int argc, char **argv)
 
     if(ldap.Error())
     {
-	std::cout << "error: " <<  ldap.Message() << std::endl;
+	std::cerr << "error: " <<  ldap.Message() << std::endl;
 	return 1;
     }
 
-    const std::string uid(profile.pw_name);
-    
-    const size_t it = filter.find("$uid");
-    
-    if(it != std::string::npos)
-    {
-	filter.resize(it);
-        filter.append(uid);
-    }
+    filter = StringReplace(filter, "$uid", profile.pw_name);
 
-    const Ldap::Entries result = ldap.Search(group_dn, Ldap::ONE, filter);
+    if(debug)
+	std::cerr << "set filter: " <<  filter << std::endl;
+
+    const Ldap::ListEntries result = ldap.Search(group_dn, Ldap::ScopeOne, filter);
+
+    if(debug)
+	std::cerr << "found results: " << result.size() << std::endl;
 
     if(result.size())
     {
-	for(Ldap::Entries::const_iterator
+	for(Ldap::ListEntries::const_iterator
 	    it = result.begin(); it != result.end(); ++it)
 	    if(endline)
 		std::cout << (*it).GetStringValue("cn") << std::endl;
