@@ -1,0 +1,6 @@
+foreach(EXAMPLE IN ITEMS test ping groups group_ldap_acl cat)
+    add_executable(${EXAMPLE} ${EXAMPLE}.cpp)
+    target_link_libraries(${EXAMPLE} ${LDAP_CPP_LIBRARY_NAME})
+    target_compile_options(${EXAMPLE} PRIVATE ${EXTRA_CFLAGS})
+    target_include_directories(${EXAMPLE} PRIVATE ${CMAKE_SOURCE_DIR})
+endforeach()
