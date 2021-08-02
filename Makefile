@@ -4,7 +4,7 @@ TARGET	:= libcldap++
 CC	:= g++
 
 LIBS	:= -lldap -llber
-CFLAGS	:= -std=c++0x -fPIC -Wall -I .
+CFLAGS	:= -std=c++14 -fPIC -Wall -I .
 
 ifdef DEBUG
 CFLAGS	:= $(CFLAGS) -O0 -g -pedantic -DWITH_DEBUG

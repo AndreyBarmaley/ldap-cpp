@@ -8,7 +8,7 @@ project(ldap-cpp
 option(BUILD_SHARED_LIBS "Set to OFF to build static library" ON)
 option(BUILD_EXAMPLES "Build test binaries in the example/ directory")
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED true)
 set(CMAKE_EXPORT_COMPILE_COMMANDS true)
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -pedantic")
