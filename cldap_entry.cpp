@@ -40,18 +40,16 @@ const std::string & Ldap::Entry::DN(void) const
 
 void Ldap::Entry::Append(int op, const std::string & attr, const std::string & value)
 {
-    if(attr.size() && value.size())
-    {
-	auto mod = FindOrPush(attr, op, false);
+    auto mod = FindOrPush(attr, op, false);
+    if(mod && value.size())
 	mod->Append(value);
-    }
 }
 
 void Ldap::Entry::Append(int op, const std::string & attr, const std::vector<std::string> & vals)
 {
-    if(attr.size() && vals.size())
+    auto mod = FindOrPush(attr, op, false);
+    if(mod)
     {
-	auto mod = FindOrPush(attr, op, false);
 	for(auto & val : vals)
 	    mod->Append(val);
     }
@@ -59,9 +57,9 @@ void Ldap::Entry::Append(int op, const std::string & attr, const std::vector<std
 
 void Ldap::Entry::Append(int op, const std::string & attr, const std::list<std::string> & vals)
 {
-    if(attr.size() && vals.size())
+    auto mod = FindOrPush(attr, op, false);
+    if(mod)
     {
-	auto mod = FindOrPush(attr, op, false);
 	for(auto & val : vals)
 	    mod->Append(val);
     }
@@ -78,9 +76,9 @@ void Ldap::Entry::Append(int op, const std::string & attr, const std::vector<cha
 
 void Ldap::Entry::Append(int op, const std::string & attr, const std::vector< std::vector<char> > & vals)
 {
-    if(attr.size() && vals.size())
+    auto mod = FindOrPush(attr, op, true);
+    if(mod)
     {
-	auto mod = FindOrPush(attr, op, true);
 	for(auto & val : vals)
 	    mod->Append(val);
     }
@@ -88,9 +86,9 @@ void Ldap::Entry::Append(int op, const std::string & attr, const std::vector< st
 
 void Ldap::Entry::Append(int op, const std::string & attr, const std::list< std::vector<char> > & vals)
 {
-    if(attr.size() && vals.size())
+    auto mod = FindOrPush(attr, op, true);
+    if(mod)
     {
-	auto mod = FindOrPush(attr, op, true);
 	for(auto & val : vals)
 	    mod->Append(val);
     }
@@ -190,6 +188,9 @@ Ldap::Entry::GetBinaryList(const std::string & attr) const
 
 Ldap::ModBase* Ldap::Entry::FindOrPush(const std::string & attr, int op, bool binary)
 {
+    if(attr.empty())
+	return NULL;
+
     auto it = std::find_if(values.begin(), values.end(),
 	    [&](auto & ptr){ return ptr && ptr->IsBinary() == binary && ptr->IsType(attr) && ptr->IsOperation(op); });
     if(it != values.end()) return (*it).get();

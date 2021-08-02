@@ -282,8 +282,11 @@ Ldap::ListEntries Ldap::Server::Search(const std::string & base, const Scope & s
 		    if(count)
 		    {
 			auto mod = current_entry.FindOrPush(ldap_attr, ActionAdd, true);
-			for(size_t ii = 0; ii < count; ++ii)
-			    if(vals[ii]) mod->Append(vals[ii]->bv_val, vals[ii]->bv_len);
+			if(mod)
+			{
+			    for(size_t ii = 0; ii < count; ++ii)
+				if(vals[ii]) mod->Append(vals[ii]->bv_val, vals[ii]->bv_len);
+			}
 		    }
     		    ldap_value_free_len(vals);
 		}
@@ -295,8 +298,11 @@ Ldap::ListEntries Ldap::Server::Search(const std::string & base, const Scope & s
 		    if(count)
 		    {
 			auto mod = current_entry.FindOrPush(ldap_attr, ActionAdd, false);
-			for(size_t ii = 0; ii < count; ++ii)
-			    mod->Append(vals[ii]);
+			if(mod)
+			{
+			    for(size_t ii = 0; ii < count; ++ii)
+				mod->Append(vals[ii]);
+			}
 		    }
     		    ldap_value_free(vals);
 		}
@@ -377,8 +383,7 @@ void Ldap::Pools::AddPools(const std::list<Info> & bis)
 
 Ldap::ListEntries Ldap::Pools::Search(const std::string & base, const Scope & scope, const std::string & filter)
 {
-    ListAttrs attrs;
-    return Search(base, scope, filter, attrs);
+    return Search(base, scope, filter);
 }
 
 Ldap::ListEntries Ldap::Pools::Search(const std::string & base, const Scope & scope, const std::string & filter, const ListAttrs & attrs)
@@ -404,7 +409,7 @@ Ldap::ListEntries Ldap::Pools::Search(const std::string & base, const Scope & sc
 
     if((*current).IsBinded())
     {
-	res = (*current).Search(base, scope, filter);
+	res = (*current).Search(base, scope, filter, attrs);
     }
 
     return res;
