@@ -48,8 +48,8 @@ void help(const std::string & name)
 	"  -t    test only" << std::endl <<
 	"  -h    print this help and exit" << std::endl << std::endl <<
 	"  example squid ACL:" << std::endl <<
-	"  external_acl_type type_comp_allow_map ttl=20 children=4 %SRC /path/to/group_ldap_acl -H ldaps://ldap.org -b cn=deny_computers,ou=group,dc=org" << std::endl <<
-	"  acl COMP_ALLOW external type_comp_boss_map" << std::endl <<
+	"  external_acl_type type_comp_allow_map ttl=20 children=4 %SRC /path/to/group_ldap_acl -H ldaps://ldap.org -b cn=allow_computers,ou=group,dc=org" << std::endl <<
+	"  acl COMP_ALLOW external type_comp_allow_map" << std::endl <<
 	"  ..." << std::endl <<
 	"  http_access deny !COMP_ALLOW" << std::endl << std::endl <<
 	"  # for check %LOGIN need define proxy_auth above" << std::endl <<

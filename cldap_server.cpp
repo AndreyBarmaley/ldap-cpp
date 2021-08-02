@@ -268,7 +268,7 @@ Ldap::ListEntries Ldap::Server::Search(const std::string & base, const Scope & s
 	{
 	    char* dn = ldap_get_dn(ldap_object, ldap_entry);
 
-    	    result.push_back(Entry(dn));
+    	    result.emplace_back(dn);
     	    Entry & current_entry = result.back();
 
 	    BerElement* ber = NULL;
@@ -281,10 +281,9 @@ Ldap::ListEntries Ldap::Server::Search(const std::string & base, const Scope & s
 		    size_t count = ldap_count_values_len(vals);
 		    if(count)
 		    {
-			auto it = current_entry.PushBack(ldap_attr, ActionAdd, true);
-			if(it != current_entry.values.end())
-			    for(size_t ii = 0; ii < count; ++ii)
-				if(vals[ii]) (*it)->Append(vals[ii]->bv_val, vals[ii]->bv_len);
+			auto mod = current_entry.FindOrPush(ldap_attr, ActionAdd, true);
+			for(size_t ii = 0; ii < count; ++ii)
+			    if(vals[ii]) mod->Append(vals[ii]->bv_val, vals[ii]->bv_len);
 		    }
     		    ldap_value_free_len(vals);
 		}
@@ -295,10 +294,9 @@ Ldap::ListEntries Ldap::Server::Search(const std::string & base, const Scope & s
 		    size_t count = ldap_count_values(vals);
 		    if(count)
 		    {
-			auto it = current_entry.PushBack(ldap_attr, ActionAdd, false);
-			if(it != current_entry.values.end())
-			    for(size_t ii = 0; ii < count; ++ii)
-				(*it)->Append(vals[ii]);
+			auto mod = current_entry.FindOrPush(ldap_attr, ActionAdd, false);
+			for(size_t ii = 0; ii < count; ++ii)
+			    mod->Append(vals[ii]);
 		    }
     		    ldap_value_free(vals);
 		}
@@ -372,8 +370,8 @@ void Ldap::Pools::AddServer(const Info & bi)
 
 void Ldap::Pools::AddPools(const std::list<Info> & bis)
 {
-    for(auto it = bis.begin(); it != bis.end(); ++it)
-	push_back(Ldap::Server(*it));
+    for(auto & info : bis)
+	emplace_back(info);
     current = begin();
 }
 

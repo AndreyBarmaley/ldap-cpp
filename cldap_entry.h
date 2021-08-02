@@ -32,7 +32,7 @@ namespace Ldap
     {
 	public:
 	    Entry(const std::string &);
-	    ~Entry();
+	    ~Entry() {}
 
 	    void		SetDN(const std::string &);
 	    const std::string &	DN(void) const;
@@ -51,6 +51,9 @@ namespace Ldap
 	    std::list<std::string>
 				GetStringList(const std::string &) const;
 
+	    std::list<std::string>
+				GetAttributes(void) const;
+
 	    std::vector<char>	GetBinaryValue(const std::string &) const;
 	    std::vector< std::vector<char> >
 				GetBinaryValues(const std::string &) const;
@@ -68,8 +71,7 @@ namespace Ldap
 
 	    std::vector<LDAPMod*>
 				toLDAPMods(void) const;
-	    iterator		PushBack(const std::string & type, int op, bool binary);
-	    const_iterator	FindType(const std::string &) const;
+	    ModBase*		FindOrPush(const std::string & type, int op, bool binary);
 
 	    std::string		dn;
 	    std::vector< std::shared_ptr<ModBase> >

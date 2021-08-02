@@ -90,6 +90,11 @@ bool Ldap::ModBase::IsType(const std::string & str) const
     return 0 == str.compare(val.mod_type);
 }
 
+const char* Ldap::ModBase::GetType(void) const
+{
+    return val.mod_type;
+}
+
 const LDAPMod* Ldap::ModBase::toLDAPMod(void) const
 {
     return & val;
@@ -169,7 +174,7 @@ std::vector<std::string> Ldap::ModStr::GetStringValues(void) const
 
     while(vals && *vals)
     {
-        res.push_back(std::string(*vals));
+        res.emplace_back(*vals);
         ++vals;
     }
 
@@ -183,7 +188,7 @@ std::list<std::string> Ldap::ModStr::GetStringList(void) const
 
     while(vals && *vals)
     {
-        res.push_back(std::string(*vals));
+        res.emplace_back(*vals);
         ++vals;
     }
 
@@ -207,7 +212,7 @@ std::vector< std::vector<char> > Ldap::ModStr::GetBinaryValues(void) const
 
     while(vals && *vals)
     {
-        res.push_back(std::vector<char>(*vals, *vals + strlen(*vals)));
+        res.emplace_back(*vals, *vals + strlen(*vals));
         ++vals;
     }
 
@@ -221,7 +226,7 @@ std::list< std::vector<char> > Ldap::ModStr::GetBinaryList(void) const
 
     while(vals && *vals)
     {
-        res.push_back(std::vector<char>(*vals, *vals + strlen(*vals)));
+        res.emplace_back(*vals, *vals + strlen(*vals));
         ++vals;
     }
 
@@ -300,7 +305,7 @@ std::vector<std::string> Ldap::ModBin::GetStringValues(void) const
 
     while(bvals && *bvals)
     {
-        res.push_back(std::string((*bvals)->bv_val, (*bvals)->bv_len));
+        res.emplace_back((*bvals)->bv_val, (*bvals)->bv_len);
         ++bvals;
     }
 
@@ -314,7 +319,7 @@ std::list<std::string> Ldap::ModBin::GetStringList(void) const
 
     while(bvals && *bvals)
     {
-        res.push_back(std::string((*bvals)->bv_val, (*bvals)->bv_len));
+        res.emplace_back((*bvals)->bv_val, (*bvals)->bv_len);
         ++bvals;
     }
 
@@ -341,7 +346,7 @@ std::vector< std::vector<char> > Ldap::ModBin::GetBinaryValues(void) const
 
     while(bvals && *bvals)
     {
-        res.push_back(std::vector<char>((*bvals)->bv_val, (*bvals)->bv_val + (*bvals)->bv_len));
+        res.emplace_back((*bvals)->bv_val, (*bvals)->bv_val + (*bvals)->bv_len);
         ++bvals;
     }
 
@@ -355,7 +360,7 @@ std::list< std::vector<char> > Ldap::ModBin::GetBinaryList(void) const
 
     while(bvals && *bvals)
     {
-        res.push_back(std::vector<char>((*bvals)->bv_val, (*bvals)->bv_val + (*bvals)->bv_len));
+        res.emplace_back((*bvals)->bv_val, (*bvals)->bv_val + (*bvals)->bv_len);
         ++bvals;
     }
 
@@ -522,15 +527,8 @@ namespace Base64
 	// find not ascii
 	if(!base64)
 	{
-	    auto it = value.begin();
-	    if(opt_binary_only)
-	    {
-		for(; it != value.end(); ++it) if(0 <= *it && std::iscntrl(*it)) break;
-	    }
-	    else
-	    {
-		for(; it != value.end(); ++it) if(0 == std::isgraph(*it)) break;
-	    }
+	    auto it = std::find_if(value.begin(), value.end(),
+			[=](int ch){ return opt_binary_only ? 0 <= ch && std::iscntrl(ch) : 0 == std::isgraph(ch); });
 	    if(it != value.end()) base64 = true;
 	}
 

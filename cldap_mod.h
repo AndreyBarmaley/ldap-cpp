@@ -44,6 +44,8 @@ namespace Ldap
 	bool		IsBinary(void) const;
 	bool		IsOperation(int) const;
 
+	const char*	GetType(void) const;
+
 	virtual std::string			GetStringValue(void) const = 0;
 	virtual std::vector<std::string>	GetStringValues(void) const = 0;
 	virtual std::list<std::string>		GetStringList(void) const = 0;
@@ -69,22 +71,17 @@ namespace Ldap
 	ModStr(int op, const std::string & type) : ModBase(op, type.c_str()) {}
 	~ModStr() { Clear(); }
 
-	void		Clear(void);
-	bool		Append(const char*, size_t);
+	void		Clear(void) override;
+	bool		Append(const char*, size_t) override;
 	void		Append(const char*);
 
-	std::string	GetStringValue(void) const;
-	std::vector<std::string>
-			GetStringValues(void) const;
-	std::list<std::string>
-			GetStringList(void) const;
+	std::string				GetStringValue(void) const override;
+	std::vector<std::string>		GetStringValues(void) const override;
+	std::list<std::string>			GetStringList(void) const override;
 
-	std::vector<char>
-			GetBinaryValue(void) const;
-	std::vector< std::vector<char> >
-			GetBinaryValues(void) const;
-	std::list< std::vector<char> >
-			GetBinaryList(void) const;
+	std::vector<char>			GetBinaryValue(void) const override;
+	std::vector< std::vector<char> >	GetBinaryValues(void) const override;
+	std::list< std::vector<char> >		GetBinaryList(void) const override;
     };
 
     class ModBin : public ModBase
@@ -95,21 +92,16 @@ namespace Ldap
 	ModBin(int op, const std::string & type) : ModBase(op | LDAP_MOD_BVALUES, type.c_str()) {}
 	~ModBin() { Clear(); }
 
-	void		Clear(void);
-	bool		Append(const char*, size_t);
+	void		Clear(void) override;
+	bool		Append(const char*, size_t) override;
 
-	std::string	GetStringValue(void) const;
-	std::vector<std::string>
-			GetStringValues(void) const;
-	std::list<std::string>
-			GetStringList(void) const;
+	std::string				GetStringValue(void) const override;
+	std::vector<std::string>		GetStringValues(void) const override;
+	std::list<std::string>			GetStringList(void) const override;
 
-	std::vector<char>
-			GetBinaryValue(void) const;
-	std::vector< std::vector<char> >
-			GetBinaryValues(void) const;
-	std::list< std::vector<char> >
-			GetBinaryList(void) const;
+	std::vector<char>			GetBinaryValue(void) const override;
+	std::vector< std::vector<char> >	GetBinaryValues(void) const override;
+	std::list< std::vector<char> >		GetBinaryList(void) const override;
     };
 
     std::ostream & operator<< (std::ostream &, const ModStr &);
