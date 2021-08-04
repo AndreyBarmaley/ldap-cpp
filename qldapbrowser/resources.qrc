@@ -1,0 +1,6 @@
+<RCC>
+  <qresource>
+     <file>icons/server_add.png</file>
+     <file>icons/server_del.png</file>
+  </qresource>
+</RCC>
