@@ -37,7 +37,7 @@ class QStatusBar;
 class QAction;
 QT_END_NAMESPACE
 
-#include <ldap-cpp/cldap.h>
+#include "../cldap.h"
 
 class LdapServerItem : public QTreeWidgetItem, protected Ldap::Server
 {
