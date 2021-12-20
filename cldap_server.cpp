@@ -383,7 +383,8 @@ void Ldap::Pools::AddPools(const std::list<Info> & bis)
 
 Ldap::ListEntries Ldap::Pools::Search(const std::string & base, const Scope & scope, const std::string & filter)
 {
-    return Search(base, scope, filter);
+    ListAttrs attrs;
+    return Search(base, scope, filter, attrs);
 }
 
 Ldap::ListEntries Ldap::Pools::Search(const std::string & base, const Scope & scope, const std::string & filter, const ListAttrs & attrs)

@@ -27,7 +27,7 @@
 #include <iostream>
 #include <ldap.h>
 
-#define CLDAP_VERSION 20210802
+#define CLDAP_VERSION 20211220
 
 namespace Ldap
 {
