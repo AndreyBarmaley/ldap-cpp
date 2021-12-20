@@ -148,8 +148,7 @@ void TreeList::addLdapServerItem(void)
 	LdapServerItem* ldap = new LdapServerItem(uri);
 	if(ldap->connect(uri))
 	{
-    	    //if(ldap->bind(login, pass))
-    	    if(ldap->bind())
+    	    if(ldap->bind(login, pass))
         	addTopLevelItem(ldap);
     	    else
 	    {
