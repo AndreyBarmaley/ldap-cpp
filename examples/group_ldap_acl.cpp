@@ -20,20 +20,35 @@
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
  ***************************************************************************/
 
+#include <list>
+#include <cctype>
+#include <cstdio>
 #include <fstream>
 #include <iostream>
-#include <list>
 #include <algorithm>
-#include <cctype>
 
+#include <signal.h>
+#include <syslog.h>
 #include <unistd.h>
+#include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
 
 #include "cldap.h"
-#define VERSION "1.4"
+#define VERSION "1.6"
+
+#define HELPER_INPUT_BUFFER 8196
+
+/* send OK result to Squid with a string parameter. */
+#define SEND_OK(x)  std::cout << "OK " << x << std::endl
+
+/* send ERR result to Squid with a string parameter. */
+#define SEND_ERR(x) std::cout << "ERR " << x << std::endl
+
+/* send BH result to Squid with a string parameter. */
+#define SEND_BH(x)  std::cout << "BH " << x << std::endl
 
 void help(const std::string & name)
 {
@@ -45,7 +60,7 @@ void help(const std::string & name)
 	"  -a    search attributes (defaults memberUid)" << std::endl <<
 	"  -f    path to authorization file (anonymous bind defaults)" << std::endl <<
 	"  -i    insensitive" << std::endl << std::endl <<
-	"  -t    test only" << std::endl <<
+	"  -d    debug to syslog" << std::endl <<
 	"  -h    print this help and exit" << std::endl << std::endl <<
 	"  example squid ACL:" << std::endl <<
 	"  external_acl_type type_comp_allow_map ttl=20 children=4 %SRC /path/to/group_ldap_acl -H ldaps://ldap.org -b cn=allow_computers,ou=group,dc=org" << std::endl <<
@@ -59,7 +74,9 @@ void help(const std::string & name)
 	"  http_access allow USERS_ALLOW" << std::endl << std::endl << std::endl <<
 	"  authorization file:" << std::endl <<
 	"  login dn" << std::endl <<
-	"  password" << std::endl << std::endl;
+	"  password" << std::endl << std::endl <<
+        "Signals: " << std::endl <<
+        "  SIGHUP - syslog debug on/off" << std::endl;
 }
 
 void parse(const std::string & file, std::string & login, std::string & passwd)
@@ -103,6 +120,25 @@ void lower(std::string & str)
     std::transform(str.begin(), str.end(), str.begin(), ::tolower);
 }
 
+static bool logging = false;
+
+void signalHandler(int sig)
+{
+    if(sig == SIGHUP)
+    {
+        if(logging)
+        {
+            logging = false;
+            syslog(LOG_INFO, "[%d] logging disabled", getpid());
+        }
+        else
+        {
+            logging = true;
+            syslog(LOG_INFO, "[%d] logging enabled", getpid());
+        }
+    }
+}
+
 int main(int argc, char **argv)
 {
     int c;
@@ -110,11 +146,9 @@ int main(int argc, char **argv)
     std::string uri, group_dn, login, passwd, authfile;
     std::string attr("memberUid");
     std::list<std::string> URIs;
-    const std::string name(argv[0]);
     bool insensitive = false;
-    bool test = false;
 
-    while((c = getopt(argc, argv, "H:b:f:a:ith")) != -1)
+    while((c = getopt(argc, argv, "H:b:f:a:idh")) != -1)
     {
        switch(c)
        {
@@ -138,12 +172,12 @@ int main(int argc, char **argv)
 		insensitive = true;
                 break;
 
-            case 't':
-		test = true;
+            case 'd':
+		logging = true;
                 break;
 
             case 'h':
-                help(name);
+                help(argv[0]);
                 return 0;
 
            default: break;
@@ -152,7 +186,7 @@ int main(int argc, char **argv)
 
     if(uri.empty() || group_dn.empty())
     {
-        help(name);
+        help(argv[0]);
         return 0;
     }
     else
@@ -173,39 +207,44 @@ int main(int argc, char **argv)
 	std::cerr << "URI: " << *it << ", error: " <<  pools.back().Message() << std::endl;
     }
 
-
-
     if(0 == std::count_if(pools.begin(), pools.end(), std::mem_fun_ref(&Ldap::Server::IsConnected)))
     {
 	std::cerr << "LDAP servers not connected" << std::endl;
         return 1;
     }
 
-    if(test)
-    {
-        const Ldap::ListEntries & result = pools.Search(group_dn, Ldap::ScopeBase);
+    signal(SIGHUP, signalHandler);
+    openlog("group_ldap_acl", 0, LOG_DAEMON);
 
+    if(logging)
+    {
+    	syslog(LOG_INFO, "running version %s, cldap: %d", VERSION, Ldap::getVersion());
+
+        const Ldap::ListEntries & result = pools.Search(group_dn, Ldap::ScopeBase);
         if(result.size())
         {
 	    std::list<std::string> values = result.front().GetStringList(attr);
 
-    	    std::cerr << "result count: " << result.size() << std::endl;
-    	    std::cerr << "values count: " << values.size() << std::endl;
+    	    syslog(LOG_DEBUG, "search dn: %s", group_dn.c_str());
+    	    syslog(LOG_DEBUG, "result count: %ld", result.size());
+    	    syslog(LOG_DEBUG, "values count: %ld", values.size());
+
     	    for(auto it = values.begin(); it != values.end(); ++it)
-    		std::cerr << "value: " << *it << std::endl;
+    		syslog(LOG_DEBUG, " - value: %s", (*it).c_str());
 	}
-	return 1;
     }
 
     std::string stream;
+    pid_t pid = getpid();
 
     struct in_addr in;
     struct hostent *hp;
 
     while(std::cin >> stream)
     {
-	const Ldap::ListEntries & result = pools.Search(group_dn, Ldap::ScopeBase);
+        syslog(LOG_INFO, "[%d] request: %s", pid, stream.c_str());
 
+	const Ldap::ListEntries & result = pools.Search(group_dn, Ldap::ScopeBase);
 	if(result.size())
 	{
     	    std::list<std::string> values = result.front().GetStringList(attr);
@@ -216,8 +255,12 @@ int main(int argc, char **argv)
         	std::for_each(values.begin(), values.end(), lower);
 	    }
 
-    	    if(values.end() != std::find(values.begin(), values.end(), stream)) std::cout << "OK" << std::endl;
-    	    else
+    	    if(values.end() != std::find(values.begin(), values.end(), stream))
+            {
+                syslog(LOG_DEBUG, "[%d] reply OK, value: `%s'", pid, stream.c_str());
+                SEND_OK("");
+    	    }
+            else
     	    // possible ip address (3 dots)
     	    if(3 == std::count(stream.begin(), stream.end(), '.') &&
             	inet_aton(stream.c_str(), &in) &&
@@ -226,17 +269,47 @@ int main(int argc, char **argv)
             	std::string hostname(hp->h_name);
     		if(insensitive) lower(hostname);
 
-            	if(values.end() != std::find(values.begin(), values.end(), hostname)) std::cout << "OK" << std::endl;
-            	else std::cout << "ERR" << std::endl;
+            	if(values.end() != std::find(values.begin(), values.end(), hostname))
+                {
+                    syslog(LOG_DEBUG, "[%d] reply OK, hostname: `%s'", pid, hostname.c_str());
+                    SEND_OK("");
+            	}
+                else
+                {
+                    if(logging)
+                    {
+                        syslog(LOG_DEBUG, "[%d] reply ERR, hostname: `%s'", pid, hostname.c_str());
+                        SEND_ERR("");
+                    }
+                    else
+                        SEND_ERR("not found, hostname: `" << hostname << "'");
+                }
     	    }
     	    else
-            	std::cout << "ERR" << std::endl;
+            {
+                if(logging)
+                {
+                    syslog(LOG_DEBUG, "[%d] reply ERR, value: `%s'", pid, stream.c_str());
+                    SEND_ERR("");
+                }
+                else
+                    SEND_ERR("not found, value: `" << stream << "'");
+            }
 	}
     	else
-            std::cout << "ERR" << std::endl;
+        {
+            if(logging)
+            {
+                syslog(LOG_DEBUG, "[%d] reply ERR, search empty, dn: %s", pid, group_dn.c_str());
+                SEND_ERR("");
+            }
+            else
+                SEND_ERR("search empty, dn: " << group_dn);
+        }
 
         std::cout.flush();
     }
 
-    return 0;
+    closelog();
+    return EXIT_SUCCESS;
 }
