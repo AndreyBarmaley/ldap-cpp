@@ -77,7 +77,7 @@ Ldap::ModBase::ModBase(int op, const char* type)
 
 bool Ldap::ModBase::IsBinary(void) const
 {
-    return val.mod_op | LDAP_MOD_BVALUES;
+    return val.mod_op & LDAP_MOD_BVALUES;
 }
 
 bool Ldap::ModBase::IsOperation(int op) const
